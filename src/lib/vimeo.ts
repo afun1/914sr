@@ -324,6 +324,42 @@ ${customMetadata.description || ''}`
     })
   }
 
+  // Move a folder into another folder
+  async moveFolder(sourceFolderId: string, targetFolderId: string): Promise<any> {
+    try {
+      console.log(`Moving folder ${sourceFolderId} into folder ${targetFolderId}`)
+      
+      // Try different URI formats
+      const uriFormats = [
+        `/me/folders/${targetFolderId}`,
+        `/folders/${targetFolderId}`,
+        `https://api.vimeo.com/me/folders/${targetFolderId}`
+      ]
+      
+      for (const uri of uriFormats) {
+        try {
+          console.log(`Trying parent_folder_uri format: ${uri}`)
+          const result = await this.makeRequest(`/me/folders/${sourceFolderId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              parent_folder_uri: uri
+            })
+          })
+          console.log(`✅ Successfully moved folder with URI format: ${uri}`)
+          return result
+        } catch (error) {
+          console.log(`❌ Failed with URI format ${uri}:`, error)
+        }
+      }
+      
+      throw new Error('All URI formats failed for folder moving')
+      
+    } catch (error) {
+      console.error('Error in moveFolder:', error)
+      throw error
+    }
+  }
+
   // Public method to get all folders for debugging
   async getAllFolders(): Promise<any[]> {
     try {

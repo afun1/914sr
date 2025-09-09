@@ -210,6 +210,35 @@ export async function PATCH(request: Request) {
       })
     }
     
+    if (action === 'move-folder') {
+      const { sourceFolderId, targetFolderId } = await request.json()
+      
+      if (!sourceFolderId || !targetFolderId) {
+        return NextResponse.json({ 
+          error: 'Missing sourceFolderId or targetFolderId' 
+        }, { status: 400 })
+      }
+      
+      const vimeo = new VimeoService()
+      
+      try {
+        // Try to move the folder using PATCH
+        const result = await vimeo.moveFolder(sourceFolderId, targetFolderId)
+        
+        return NextResponse.json({ 
+          success: true,
+          result,
+          message: `Successfully moved folder ${sourceFolderId} into ${targetFolderId}`
+        })
+      } catch (error) {
+        return NextResponse.json({ 
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to move folder',
+          message: `Failed to move folder ${sourceFolderId} into ${targetFolderId}`
+        }, { status: 500 })
+      }
+    }
+    
     if (action === 'debug-folders') {
       const vimeo = new VimeoService()
       
