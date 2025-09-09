@@ -189,29 +189,28 @@ export class VimeoService {
     try {
       console.log('Creating user folder:', userDisplayName)
       
-      // Use the existing SSR folder (ID: 26524560) as parent
-      const ssrFolderId = '26524560'
+      // Use the existing SSR project (ID: 26524560) as parent
+      const ssrProjectId = '26524560'
       const customerFolderName = userDisplayName
       
-      // First try to create folder inside SSR folder using parent_folder_uri
-      console.log('Creating customer folder:', customerFolderName, 'inside SSR folder')
+      // Try to create folder inside SSR project using the projects API
+      console.log('Creating customer folder:', customerFolderName, 'inside SSR project')
       try {
-        const customerFolder = await this.makeRequest(`/me/folders`, {
+        const customerFolder = await this.makeRequest(`/me/projects/${ssrProjectId}/folders`, {
           method: 'POST',
           body: JSON.stringify({
-            name: customerFolderName,
-            parent_folder_uri: `/me/folders/${ssrFolderId}`
+            name: customerFolderName
           })
         })
       
-        console.log('Successfully created customer folder inside SSR:', customerFolder)
+        console.log('Successfully created customer folder inside SSR project:', customerFolder)
         return customerFolder
       
       } catch (createError) {
-        console.error('Failed to create folder inside SSR with parent_folder_uri:', createError)
+        console.error('Failed to create folder inside SSR project:', createError)
         
-        // If parent_folder_uri doesn't work, try alternative method
-        console.log('Trying alternative approach: create folder then move it')
+        // If project API doesn't work, try folders API as fallback
+        console.log('Trying folders API as fallback')
         
         // Create folder at root level first
         const rootFolder = await this.makeRequest('/me/folders', {
