@@ -108,10 +108,11 @@ export async function POST(request: NextRequest) {
             description
           })
 
-          // Step 1: Create or get user-specific folder inside Sparky Screen Recordings
-          console.log('Creating/getting user folder for:', userDisplayName)
+          // Step 1: Create or get liaison-specific folder inside Sparky Screen Recordings
+          // Note: We organize by liaison (userDisplayName) not customer, since customers may work with multiple liaisons
+          console.log('Creating/getting liaison folder for:', userDisplayName)
           const userFolder = await vimeo.createUserSpecificFolder(userDisplayName, customerEmail)
-          console.log('User folder created/found:', userFolder.name, userFolder.uri)
+          console.log('Liaison folder created/found:', userFolder.name, userFolder.uri)
           
           // Use the full folder URI for project subfolders
           const folderUri = userFolder.uri

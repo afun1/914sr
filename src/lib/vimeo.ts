@@ -185,20 +185,21 @@ export class VimeoService {
     })
   }
 
+  // Creates a folder for a specific liaison (not customer) since customers may work with multiple liaisons
   async createUserSpecificFolder(userDisplayName: string, userEmail: string): Promise<VimeoFolder> {
     try {
-      console.log('Creating user folder:', userDisplayName)
+      console.log('Creating liaison folder:', userDisplayName)
       
       // Use the existing SSR project (ID: 26555277) as parent - Enterprise Account
       const ssrProjectId = '26555277'
-      const customerFolderName = userDisplayName
+      const liaisonFolderName = userDisplayName
       
       // Step 1: Create folder at root level (this always works)
-      console.log('Creating customer folder at root level first:', customerFolderName)
+      console.log('Creating liaison folder at root level first:', liaisonFolderName)
       const rootFolder = await this.makeRequest('/me/folders', {
         method: 'POST',
         body: JSON.stringify({
-          name: customerFolderName
+          name: liaisonFolderName
         })
       })
       
@@ -371,17 +372,17 @@ ${customMetadata.description || ''}`
         console.log('Could not get SSR subfolders, proceeding anyway:', error)
       }
       
-      // Find customer folders that should be moved (exclude SSR itself)
-      const customerFolders = rootFolders.data?.filter((folder: any) => {
+      // Find liaison folders that should be moved (exclude SSR itself)
+      const liaisonFolders = rootFolders.data?.filter((folder: any) => {
         const folderId = folder.uri.split('/').pop()
         return folderId !== ssrFolderId && 
                !ssrSubfolders.find(sub => sub.name === folder.name)
       })
       
-      console.log('Customer folders to organize:', customerFolders?.length)
+      console.log('Liaison folders to organize:', liaisonFolders?.length)
       
-      // Try to move each customer folder into SSR
-      for (const folder of customerFolders || []) {
+      // Try to move each liaison folder into SSR
+      for (const folder of liaisonFolders || []) {
         const folderId = folder.uri.split('/').pop()
         console.log(`Attempting to move folder "${folder.name}" (${folderId}) into SSR`)
         
