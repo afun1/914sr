@@ -249,9 +249,12 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                       <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                         {user.email}
                       </p>
-                      {profile?.role && (
+                      {(profile?.role || impersonatedUser?.role) && (
                         <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          {getRoleDisplay(profile.role).label}
+                          {isImpersonating 
+                            ? `${getRoleDisplay(impersonatedUser.role).label} (impersonated)` 
+                            : getRoleDisplay(profile!.role).label
+                          }
                         </p>
                       )}
                     </div>

@@ -10,6 +10,7 @@ import type { User } from '@supabase/supabase-js'
 
 export default function HierarchyPage() {
   const [userRole, setUserRole] = useState<UserRole>('user')
+  const [effectiveRole, setEffectiveRole] = useState<UserRole>('user')
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -26,7 +27,24 @@ export default function HierarchyPage() {
             .single()
           
           if (profile) {
-            setUserRole(profile.role as UserRole)
+            const originalRole = profile.role as UserRole
+            setUserRole(originalRole)
+            
+            // Check for impersonation
+            const impersonationActive = localStorage.getItem('impersonation_active')
+            const impersonatedUserData = localStorage.getItem('impersonation_target')
+            
+            if (impersonationActive === 'true' && impersonatedUserData) {
+              const impersonated = JSON.parse(impersonatedUserData)
+              setEffectiveRole(impersonated.role as UserRole)
+              console.log('🎭 Hierarchy page - Impersonation detected:', {
+                originalRole,
+                effectiveRole: impersonated.role,
+                impersonatedUser: impersonated
+              })
+            } else {
+              setEffectiveRole(originalRole)
+            }
           }
         }
       } catch (error) {
@@ -37,6 +55,14 @@ export default function HierarchyPage() {
     }
 
     fetchUserRole()
+    
+    // Listen for storage changes (impersonation start/stop)
+    const handleStorageChange = () => {
+      fetchUserRole()
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   if (loading) {
@@ -76,7 +102,7 @@ export default function HierarchyPage() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
             }>
-              <Hierarchy userRole={userRole} />
+              <Hierarchy userRole={effectiveRole} />
             </Suspense>
           </div>
         </div>
