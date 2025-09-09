@@ -1,5 +1,6 @@
 'use client'
 
+// Force rebuild - UserVideos component with impersonation support
 import { useState, useEffect } from 'react'
 import { useVimeo } from '@/hooks/useVimeo'
 import { useUser } from './AuthWrapper'
