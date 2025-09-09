@@ -136,7 +136,7 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
     console.log('All videos count:', allVideos.length)
     
     // Admins and supervisors see all videos (unless impersonating)
-    if (activeRole === 'admin' || activeRole === 'supervisor') {
+    if ((activeRole === 'admin' || activeRole === 'supervisor') && !impersonatedUser) {
       console.log('✅ Admin/Supervisor access - showing all videos')
       return allVideos
     }

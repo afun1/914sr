@@ -26,6 +26,12 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
 
   // Create display name function with liaison mapping
   const getDisplayName = () => {
+    // If impersonating, show the impersonated user's name
+    if (isImpersonating && impersonatedUser) {
+      return impersonatedUser.display_name || impersonatedUser.email?.split('@')[0] || 'Impersonated User'
+    }
+    
+    // Otherwise show original user's name
     if (profile?.display_name) return profile.display_name
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name
     
@@ -57,6 +63,14 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
     
     // Fallback to email username or full email
     return user?.email?.split('@')[0] || user?.email || 'User'
+  }
+
+  // Get effective role (considering impersonation)
+  const getEffectiveRole = () => {
+    if (isImpersonating && impersonatedUser) {
+      return impersonatedUser.role
+    }
+    return profile?.role || 'user'
   }
 
   useEffect(() => {
@@ -186,43 +200,47 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                 <span>Customers</span>
               </Link>
 
-              {/* Admin Dashboard Buttons - Always visible, pages handle permissions */}
-              <div className="flex items-center space-x-3">
-                <Link
-                  href="/videos"
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                  prefetch={true}
-                >
-                  <span>🎥</span>
-                  <span>Videos</span>
-                </Link>
-                <Link
-                  href="/hierarchy"
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-500 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                  prefetch={true}
-                >
-                  <span>🏗️</span>
-                  <span>Hierarchy</span>
-                </Link>
-                <Link
-                  href="/users"
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                  prefetch={true}
-                >
-                  <span>👥</span>
-                  <span>Users</span>
-                </Link>
-              </div>
+              {/* Admin Dashboard Buttons - Show only if user has admin access (considering impersonation) */}
+              {hasAdminAccess(getEffectiveRole()) && (
+                <div className="flex items-center space-x-3">
+                  <Link
+                    href="/videos"
+                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                    prefetch={true}
+                  >
+                    <span>🎥</span>
+                    <span>Videos</span>
+                  </Link>
+                  <Link
+                    href="/hierarchy"
+                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-500 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                    prefetch={true}
+                  >
+                    <span>🏗️</span>
+                    <span>Hierarchy</span>
+                  </Link>
+                  <Link
+                    href="/users"
+                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                    prefetch={true}
+                  >
+                    <span>👥</span>
+                    <span>Users</span>
+                  </Link>
+                </div>
+              )}
               
-              {/* Admin Panel Button - Always visible, pages handle permissions */}
-              <Link
-                href="/admin"
-                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                prefetch={true}
-              >
-                <span>🔧</span>
-                <span>Admin Panel</span>
-              </Link>
+              {/* Admin Panel Button - Show only if user has admin access (considering impersonation) */}
+              {hasAdminAccess(getEffectiveRole()) && (
+                <Link
+                  href="/admin"
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                  prefetch={true}
+                >
+                  <span>🔧</span>
+                  <span>Admin Panel</span>
+                </Link>
+              )}
             </div>
             
             {/* Right: User Menu */}
@@ -247,7 +265,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                         {getDisplayName()}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                        {user.email}
+                        {isImpersonating && impersonatedUser ? impersonatedUser.email : user.email}
                       </p>
                       {(profile?.role || impersonatedUser?.role) && (
                         <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">

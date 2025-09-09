@@ -42,10 +42,27 @@ export default function AdminDashboard() {
 
         if (profileData) {
           setProfile(profileData)
-          setHasAccess(hasAdminAccess(profileData.role))
           
-          // Validate activeTab based on user role
-          const userRole = profileData.role || 'user'
+          // Check for impersonation and get effective role
+          const impersonationActive = localStorage.getItem('impersonation_active')
+          const impersonatedUserData = localStorage.getItem('impersonation_target')
+          
+          let effectiveRole = profileData.role
+          
+          if (impersonationActive === 'true' && impersonatedUserData) {
+            const impersonated = JSON.parse(impersonatedUserData)
+            effectiveRole = impersonated.role
+            console.log('🎭 Admin page - Impersonation detected:', {
+              originalRole: profileData.role,
+              effectiveRole: impersonated.role,
+              impersonatedUser: impersonated
+            })
+          }
+          
+          setHasAccess(hasAdminAccess(effectiveRole))
+          
+          // Validate activeTab based on effective user role
+          const userRole = effectiveRole || 'user'
           if (userRole === 'manager') {
             // Managers can see videos but not users or hierarchy
             if (activeTab === 'users' || activeTab === 'hierarchy') {
