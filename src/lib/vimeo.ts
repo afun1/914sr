@@ -222,11 +222,22 @@ export class VimeoService {
         
         console.log('Created folder at root level:', rootFolder)
         
-        // TODO: In future, we might need to implement folder moving logic here
-        // For now, we'll return the root-level folder but log that it needs to be moved
-        console.warn('Folder created at root level instead of inside SSR - manual organization may be needed')
-        
-        return rootFolder
+        // Try to move the folder inside SSR folder
+        console.log('Attempting to move folder inside SSR folder')
+        try {
+          const movedFolder = await this.makeRequest(`/me/folders/${rootFolder.uri.split('/').pop()}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              parent_folder_uri: `/me/folders/${ssrProjectId}`
+            })
+          })
+          console.log('Successfully moved folder inside SSR:', movedFolder)
+          return movedFolder
+        } catch (moveError) {
+          console.error('Failed to move folder inside SSR:', moveError)
+          console.warn('Folder created at root level and could not be moved - manual organization needed')
+          return rootFolder
+        }
       }
       
     } catch (outerError) {
