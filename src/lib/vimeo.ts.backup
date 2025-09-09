@@ -252,10 +252,6 @@ export class VimeoService {
         console.error('Error creating user-specific folder:', error)
         throw error
       }
-    } catch (outerError) {
-      console.error('Error in createUserSpecificFolder:', outerError)
-      throw outerError
-    }
   }
 
   async moveVideoToFolder(videoUri: string, folderUri: string): Promise<void> {
