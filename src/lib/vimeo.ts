@@ -147,7 +147,7 @@ export class VimeoService {
         method: 'POST',
         body: JSON.stringify({ 
           name,
-          parent_folder_uri: `/folders/${parentFolderId}`
+          parent_folder_uri: `/me/folders/${parentFolderId}`
         })
       })
     } catch (error) {
@@ -191,71 +191,45 @@ export class VimeoService {
       
       // Use the existing SSR folder (ID: 26524560) as parent
       const ssrFolderId = '26524560'
-      const parentFolderId = ssrFolderId
-      
-      // Step 1: Check if customer folder already exists in SSR folder
       const customerFolderName = userDisplayName
       
-      try {
-        // Check existing subfolders in SSR folder
-        console.log(`Checking for existing subfolders in SSR folder ${ssrFolderId}`)
-        const subFolders = await this.makeRequest(`/me/folders/${ssrFolderId}/folders`)
-        const existingCustomerFolder = subFolders.data?.find((folder: any) => 
-          folder.name === customerFolderName
-        )
-        
-        if (existingCustomerFolder) {
-          console.log('Found existing customer folder in SSR folder:', existingCustomerFolder.name)
-          return existingCustomerFolder
-        }
-      } catch (error) {
-        console.warn('Could not check existing subfolders in SSR folder:', error)
-        console.log('Falling back to root level folder creation')
-        
-        // Fallback: try root level creation if SSR folder access fails
-        try {
-          const rootFolders = await this.makeRequest('/me/folders')
-          const existingRootFolder = rootFolders.data?.find((folder: any) => 
-            folder.name === customerFolderName
-          )
-          
-          if (existingRootFolder) {
-            console.log('Found existing customer folder at root level:', existingRootFolder.name)
-            return existingRootFolder
-          }
-          
-          // Create at root level if not found
-          console.log('Creating customer folder at root level as fallback')
-          return await this.makeRequest('/me/folders', {
-            method: 'POST',
-            body: JSON.stringify({
-              name: customerFolderName
-            })
-          })
-        } catch (rootError) {
-          console.error('Failed to create folder at root level too:', rootError)
-          throw rootError
-        }
-      }
-      
-      // Step 2: Try to create new customer folder inside SSR folder
+      // First try to create folder inside SSR folder using parent_folder_uri
       console.log('Creating customer folder:', customerFolderName, 'inside SSR folder')
       try {
         const customerFolder = await this.makeRequest(`/me/folders`, {
           method: 'POST',
           body: JSON.stringify({
             name: customerFolderName,
-            parent_folder_uri: `/folders/${ssrFolderId}`
+            parent_folder_uri: `/me/folders/${ssrFolderId}`
           })
         })
       
-        console.log('Created customer folder:', customerFolder)
+        console.log('Successfully created customer folder inside SSR:', customerFolder)
         return customerFolder
       
-      } catch (error) {
-        console.error('Error creating user-specific folder:', error)
-        throw error
+      } catch (createError) {
+        console.error('Failed to create folder inside SSR with parent_folder_uri:', createError)
+        
+        // If parent_folder_uri doesn't work, try alternative method
+        console.log('Trying alternative approach: create folder then move it')
+        
+        // Create folder at root level first
+        const rootFolder = await this.makeRequest('/me/folders', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: customerFolderName
+          })
+        })
+        
+        console.log('Created folder at root level:', rootFolder)
+        
+        // TODO: In future, we might need to implement folder moving logic here
+        // For now, we'll return the root-level folder but log that it needs to be moved
+        console.warn('Folder created at root level instead of inside SSR - manual organization may be needed')
+        
+        return rootFolder
       }
+      
     } catch (outerError) {
       console.error('Error in createUserSpecificFolder:', outerError)
       throw outerError
