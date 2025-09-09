@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ⚡ Sparky Screen Recorder
 
-## Getting Started
+A lightning-fast professional screen recording application built with Next.js, TypeScript, and Supabase authentication.
 
-First, run the development server:
+## ✨ Features
 
+- 🔐 **Secure Authentication**: Email/password authentication powered by Supabase
+- 🎥 **Professional Recording**: High-quality screen capture with configurable quality settings
+- ⏸️ **Pause & Resume**: Advanced recording controls with real-time pause/resume functionality
+- 📊 **Recording History**: Persistent storage and management of all recordings with thumbnails
+- ⌨️ **Keyboard Shortcuts**: Lightning-fast controls with comprehensive hotkey support
+- 🎚️ **Quality Settings**: Multiple recording quality options (High, Medium, Low)
+- 🔊 **Audio Control**: Toggle system audio recording on/off
+- ⚡ **Lightning Fast**: Optimized performance with 3-second countdown and instant controls
+- 📱 **Responsive Design**: Beautiful orange-themed interface built with Tailwind CSS
+- ☁️ **Vercel Ready**: Optimized for seamless deployment on Vercel
+- 🚀 **Modern Stack**: Next.js 15 with TypeScript and App Router
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+- A Supabase account and project
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repo-url>
+cd sparky-screen-recorder
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ⌨️ Keyboard Shortcuts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Sparky Screen Recorder includes comprehensive keyboard shortcuts for lightning-fast operation:
 
-## Learn More
+- **SPACE** - Start recording / Pause or Resume during recording
+- **ESC** - Stop recording immediately
+- **H** - Toggle recording history view
+- **Ctrl+D** - Download current recording
+- **Ctrl+R** - Record again (clears current and starts new)
 
-To learn more about Next.js, take a look at the following resources:
+## 🛠️ Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Environment Variables
+### Environment Variables
+Create a `.env.local` file in the root directory:
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Running the Application
 
-## Deploy on Vercel
+4. Start the development server:
+```bash
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deployment
+
+### Deploy to Vercel
+
+1. Push your code to a GitHub repository
+2. Connect your GitHub account to Vercel
+3. Import your repository in Vercel
+4. Add your environment variables in Vercel's dashboard
+5. Deploy!
+
+The app is optimized for Vercel deployment with automatic builds and deployments.
+
+## Usage
+
+1. **Sign In**: Use your email/password or OAuth providers to authenticate
+2. **Start Recording**: Click "Start Recording" and select the screen/window to capture
+3. **Stop Recording**: Click "Stop Recording" when finished
+4. **Download**: Preview your recording and download it locally
+
+## Technology Stack
+
+- **Framework**: Next.js 15 with App Router
+- **Language**: TypeScript
+- **Authentication**: Supabase Auth
+- **Styling**: Tailwind CSS
+- **Deployment**: Vercel
+- **Recording**: MediaRecorder API
+
+## Browser Support
+
+- Chrome/Chromium browsers (recommended)
+- Firefox
+- Edge
+- Safari (limited screen recording support)
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details
