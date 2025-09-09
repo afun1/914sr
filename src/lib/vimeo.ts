@@ -193,21 +193,21 @@ export class VimeoService {
       const ssrProjectId = '26524560'
       const customerFolderName = userDisplayName
       
-      // Try to create folder inside SSR project using the projects API
-      console.log('Creating customer folder:', customerFolderName, 'inside SSR project')
+      // Try to create folder inside SSR folder using direct subfolder API
+      console.log('Creating customer folder:', customerFolderName, 'inside SSR folder')
       try {
-        const customerFolder = await this.makeRequest(`/me/projects/${ssrProjectId}/folders`, {
+        const customerFolder = await this.makeRequest(`/me/folders/${ssrProjectId}/folders`, {
           method: 'POST',
           body: JSON.stringify({
             name: customerFolderName
           })
         })
       
-        console.log('Successfully created customer folder inside SSR project:', customerFolder)
+        console.log('Successfully created customer folder inside SSR folder:', customerFolder)
         return customerFolder
       
       } catch (createError) {
-        console.error('Failed to create folder inside SSR project:', createError)
+        console.error('Failed to create folder inside SSR folder directly:', createError)
         
         // If project API doesn't work, try folders API as fallback
         console.log('Trying folders API as fallback')
