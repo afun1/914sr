@@ -132,11 +132,12 @@ export default function Hierarchy({ userRole }: HierarchyProps) {
         >
           {hasChildren && (
             <button 
-              className="mr-3 w-6 h-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm font-bold transition-colors"
+              className="mr-3 w-6 h-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm font-bold transition-colors shadow-md"
               onClick={(e) => {
                 e.stopPropagation()
                 toggleExpanded(user.id)
               }}
+              title={isExpanded ? 'Collapse' : 'Expand'}
             >
               {isExpanded ? '−' : '+'}
             </button>
