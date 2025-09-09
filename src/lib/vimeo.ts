@@ -139,7 +139,7 @@ export class VimeoService {
     }
   }
 
-  async createFolder(name: string, parentFolderId = '26524560'): Promise<VimeoFolder> {
+  async createFolder(name: string, parentFolderId = '26555277'): Promise<VimeoFolder> {
     // Try to create folder inside the SSR folder first
     try {
       console.log(`Attempting to create folder "${name}" in SSR folder ${parentFolderId}`)
@@ -189,8 +189,8 @@ export class VimeoService {
     try {
       console.log('Creating user folder:', userDisplayName)
       
-      // Use the existing SSR project (ID: 26524560) as parent
-      const ssrProjectId = '26524560'
+      // Use the existing SSR project (ID: 26555277) as parent - Enterprise Account
+      const ssrProjectId = '26555277'
       const customerFolderName = userDisplayName
       
       // Try to create folder inside SSR folder using direct subfolder API
@@ -257,7 +257,7 @@ export class VimeoService {
     })
   }
 
-  async moveVideoToProjectFolder(videoUri: string, folderUri: string, projectId = '26524560'): Promise<void> {
+  async moveVideoToProjectFolder(videoUri: string, folderUri: string, projectId = '26555277'): Promise<void> {
     const videoId = videoUri.split('/').pop()
     const folderId = folderUri.split('/').pop()
     
@@ -345,7 +345,7 @@ ${customMetadata.description || ''}`
       console.log('Found root folders:', rootFolders.data?.length)
       
       // Get existing folders in SSR to avoid duplicates
-      const ssrFolderId = '26524560'
+      const ssrFolderId = '26555277'
       let ssrSubfolders: any[] = []
       
       try {
