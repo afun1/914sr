@@ -242,11 +242,11 @@ export default function UserManagement({ userRole }: UserManagementProps) {
 
   const canImpersonateUser = (targetRole: UserRole): boolean => {
     // Only admins and supervisors can impersonate
-    // Admins can impersonate anyone except other admins
+    // Admins can impersonate anyone (including other admins for troubleshooting)
     // Supervisors can only impersonate managers and users
     // Use the original role for impersonation permissions (not effective role)
     if (userRole === 'admin') {
-      return targetRole !== 'admin'
+      return true // Admins can impersonate anyone
     } else if (userRole === 'supervisor') {
       return targetRole === 'manager' || targetRole === 'user'
     }
