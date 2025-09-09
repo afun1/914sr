@@ -193,51 +193,30 @@ export class VimeoService {
       const ssrProjectId = '26555277'
       const customerFolderName = userDisplayName
       
-      // Try to create folder inside SSR folder using direct subfolder API
-      console.log('Creating customer folder:', customerFolderName, 'inside SSR folder')
+      // Step 1: Create folder at root level (this always works)
+      console.log('Creating customer folder at root level first:', customerFolderName)
+      const rootFolder = await this.makeRequest('/me/folders', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: customerFolderName
+        })
+      })
+      
+      console.log('Created folder at root level:', rootFolder)
+      
+      // Step 2: Try to move it into SSR folder using our moveFolder method
+      console.log('Attempting to move folder into SSR folder')
       try {
-        const customerFolder = await this.makeRequest(`/me/folders/${ssrProjectId}/folders`, {
-          method: 'POST',
-          body: JSON.stringify({
-            name: customerFolderName
-          })
-        })
-      
-        console.log('Successfully created customer folder inside SSR folder:', customerFolder)
-        return customerFolder
-      
-      } catch (createError) {
-        console.error('Failed to create folder inside SSR folder directly:', createError)
-        
-        // If project API doesn't work, try folders API as fallback
-        console.log('Trying folders API as fallback')
-        
-        // Create folder at root level first
-        const rootFolder = await this.makeRequest('/me/folders', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: customerFolderName
-          })
-        })
-        
-        console.log('Created folder at root level:', rootFolder)
-        
-        // Try to move the folder inside SSR folder
-        console.log('Attempting to move folder inside SSR folder')
-        try {
-          const movedFolder = await this.makeRequest(`/me/folders/${rootFolder.uri.split('/').pop()}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              parent_folder_uri: `/me/folders/${ssrProjectId}`
-            })
-          })
-          console.log('Successfully moved folder inside SSR:', movedFolder)
-          return movedFolder
-        } catch (moveError) {
-          console.error('Failed to move folder inside SSR:', moveError)
-          console.warn('Folder created at root level and could not be moved - manual organization needed')
-          return rootFolder
-        }
+        const movedFolder = await this.moveFolder(
+          rootFolder.uri.split('/').pop(),
+          ssrProjectId
+        )
+        console.log('✅ Successfully moved folder into SSR')
+        return movedFolder
+      } catch (moveError) {
+        console.error('❌ Failed to move folder into SSR:', moveError)
+        console.warn('Folder remains at root level - may need manual organization')
+        return rootFolder
       }
       
     } catch (outerError) {
