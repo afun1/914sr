@@ -139,8 +139,9 @@ export class VimeoService {
     }
   }
 
-  async createFolder(name: string): Promise<VimeoFolder> {
-    return this.makeRequest('/me/folders', {
+  async createFolder(name: string, parentProjectId = '26524560'): Promise<VimeoFolder> {
+    // Create folder inside the SSR project by default
+    return this.makeRequest(`/me/projects/${parentProjectId}/folders`, {
       method: 'POST',
       body: JSON.stringify({ name })
     })
@@ -175,64 +176,31 @@ export class VimeoService {
     try {
       console.log('Creating user folder:', userDisplayName)
       
-      // Step 1: Find or create the "Sparky Screen Recordings" parent folder
-      let parentFolder: VimeoFolder | null = null
-      const parentFolderName = "Sparky Screen Recordings"
+      // Use the existing SSR project folder (ID: 26524560) as parent
+      const ssrProjectId = '26524560'
+      const parentFolderId = ssrProjectId
       
-      try {
-        const folders = await this.makeRequest('/me/folders')
-        parentFolder = folders.data?.find((folder: any) => 
-          folder.name === parentFolderName
-        )
-        
-        if (!parentFolder) {
-          console.log('Creating parent folder:', parentFolderName)
-          parentFolder = await this.makeRequest('/me/folders', {
-            method: 'POST',
-            body: JSON.stringify({
-              name: parentFolderName
-            })
-          })
-          console.log('Created parent folder:', parentFolder)
-        } else {
-          console.log('Found existing parent folder:', parentFolder.name)
-        }
-      } catch (error) {
-        console.error('Error with parent folder:', error)
-        throw error
-      }
-      
-      // Step 2: Create or find customer folder inside parent folder
+      // Step 1: Check if customer folder already exists in SSR project
       const customerFolderName = userDisplayName
       
-      // Check if customer folder already exists in parent folder
       try {
-        if (!parentFolder) {
-          throw new Error('Parent folder not found')
-        }
-        
-        const parentFolderId = parentFolder.uri.split('/').pop()
-        const subFolders = await this.makeRequest(`/me/folders/${parentFolderId}/folders`)
+        // Check existing folders in SSR project
+        const subFolders = await this.makeRequest(`/me/projects/${ssrProjectId}/folders`)
         const existingCustomerFolder = subFolders.data?.find((folder: any) => 
           folder.name === customerFolderName
         )
         
         if (existingCustomerFolder) {
-          console.log('Found existing customer folder:', existingCustomerFolder.name)
+          console.log('Found existing customer folder in SSR project:', existingCustomerFolder.name)
           return existingCustomerFolder
         }
       } catch (error) {
-        console.log('Could not check existing sub-folders, proceeding to create new one')
+        console.log('Could not check existing sub-folders in SSR project, proceeding to create new one')
       }
       
-      // Create new customer folder inside parent folder
-      if (!parentFolder) {
-        throw new Error('Parent folder required but not found')
-      }
-      
-      console.log('Creating customer folder:', customerFolderName, 'inside parent folder')
-      const parentFolderId = parentFolder.uri.split('/').pop()
-      const customerFolder = await this.makeRequest(`/me/folders/${parentFolderId}/folders`, {
+      // Step 2: Create new customer folder inside SSR project
+      console.log('Creating customer folder:', customerFolderName, 'inside SSR project')
+      const customerFolder = await this.makeRequest(`/me/projects/${ssrProjectId}/folders`, {
         method: 'POST',
         body: JSON.stringify({
           name: customerFolderName
