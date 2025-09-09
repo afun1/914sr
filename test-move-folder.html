@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Move Folder</title>
+</head>
+<body>
+    <h1>Test Move Folder API</h1>
+    <button onclick="testMoveFolder()">Move Folder 26555430 into SSR (26555277)</button>
+    <div id="result"></div>
+
+    <script>
+        async function testMoveFolder() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing folder move...';
+            
+            try {
+                const response = await fetch('/api/vimeo', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'move-folder',
+                        sourceFolderId: '26555430',
+                        targetFolderId: '26555277'
+                    })
+                });
+                
+                const result = await response.json();
+                resultDiv.innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+            } catch (error) {
+                resultDiv.innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -53,6 +53,45 @@ export async function GET(request: NextRequest) {
         const folderVideos = await vimeo.getFolderVideos(folderId, page, perPage)
         return NextResponse.json(folderVideos)
 
+      case 'test-move-folder':
+        // Test moving folder 26555430 into SSR folder 26555277
+        try {
+          console.log('Testing folder move: 26555430 -> 26555277')
+          const result = await vimeo.moveFolder('26555430', '26555277')
+          return NextResponse.json({ 
+            success: true, 
+            message: 'Folder moved successfully',
+            result 
+          })
+        } catch (error) {
+          console.error('Folder move test failed:', error)
+          return NextResponse.json({ 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Move failed',
+            message: 'Failed to move test folder'
+          })
+        }
+
+      case 'debug-folder-structure':
+        // Debug the current folder structure
+        try {
+          const allFolders = await vimeo.getAllFolders()
+          const ssrFolder = await vimeo.getFolder('26555277')
+          const testFolder = await vimeo.getFolder('26555430')
+          
+          return NextResponse.json({
+            allFolders: allFolders.slice(0, 10), // Just first 10 to avoid too much data
+            ssrFolder,
+            testFolder,
+            message: 'Current folder structure'
+          })
+        } catch (error) {
+          return NextResponse.json({
+            error: error instanceof Error ? error.message : 'Debug failed',
+            message: 'Failed to get folder structure'
+          })
+        }
+
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
