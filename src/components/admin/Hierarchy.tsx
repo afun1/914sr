@@ -127,16 +127,21 @@ export default function Hierarchy({ userRole }: HierarchyProps) {
     return (
       <div key={user.id} className="border-l-2 border-gray-200 dark:border-gray-600">
         <div 
-          className="flex items-center py-2 px-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+          className="flex items-center py-2 px-4 hover:bg-gray-50 dark:hover:bg-gray-700"
           style={indentStyle}
-          onClick={() => hasChildren && toggleExpanded(user.id)}
         >
           {hasChildren && (
-            <span className="mr-2 text-gray-400">
-              {isExpanded ? '▼' : '▶'}
-            </span>
+            <button 
+              className="mr-3 w-6 h-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm font-bold transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleExpanded(user.id)
+              }}
+            >
+              {isExpanded ? '−' : '+'}
+            </button>
           )}
-          {!hasChildren && <span className="mr-4"></span>}
+          {!hasChildren && <span className="mr-9"></span>}
           
           <span className="mr-2">{getRoleIcon(user.role)}</span>
           <span className={`font-medium ${getRoleColor(user.role)}`}>
