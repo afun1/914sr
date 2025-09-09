@@ -691,9 +691,9 @@ export default function UserManagement({ userRole }: UserManagementProps) {
       )}
 
       {/* Users Table */}
-      <div className="overflow-x-scroll">
+      <div className="h-96 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Select
@@ -709,6 +709,9 @@ export default function UserManagement({ userRole }: UserManagementProps) {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Role
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Quick Actions
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Supervisor
@@ -782,6 +785,19 @@ export default function UserManagement({ userRole }: UserManagementProps) {
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role]}`}>
                       {getRoleDisplay(user.role).icon} {getRoleDisplay(user.role).label}
                     </span>
+                  )}
+                </td>
+                {/* Quick Actions column */}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {canImpersonateUser(user.role) && (
+                    <button
+                      onClick={() => handleImpersonation(user)}
+                      disabled={impersonating}
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-md transition-colors"
+                      title={`Impersonate ${user.display_name || user.email}`}
+                    >
+                      🎭
+                    </button>
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">

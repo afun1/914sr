@@ -31,9 +31,48 @@ export default function UserVideos() {
   const [showModal, setShowModal] = useState(false)
   const [showRoleManager, setShowRoleManager] = useState(false)
   const [roleChangeLoading, setRoleChangeLoading] = useState<string | null>(null)
+  const [isImpersonating, setIsImpersonating] = useState(false)
+  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
 
-  // Create display name function with liaison mapping
+  // Check for impersonation
+  useEffect(() => {
+    const checkImpersonation = () => {
+      const impersonationActive = localStorage.getItem('impersonation_active')
+      const impersonatedUserData = localStorage.getItem('impersonation_target')
+      
+      if (impersonationActive === 'true' && impersonatedUserData) {
+        const impersonated = JSON.parse(impersonatedUserData)
+        setImpersonatedUser(impersonated)
+        setIsImpersonating(true)
+        console.log('🎭 UserVideos - Impersonation detected:', {
+          originalUser: user?.email,
+          impersonatedUser: impersonated
+        })
+      } else {
+        setImpersonatedUser(null)
+        setIsImpersonating(false)
+      }
+    }
+
+    checkImpersonation()
+    
+    // Listen for storage changes
+    const handleStorageChange = () => {
+      checkImpersonation()
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [user])
+
+  // Create display name function with liaison mapping (considering impersonation)
   const getDisplayName = () => {
+    // If impersonating, use the impersonated user's name
+    if (isImpersonating && impersonatedUser) {
+      return impersonatedUser.display_name || impersonatedUser.email?.split('@')[0] || 'Impersonated User'
+    }
+    
+    // Otherwise use original user's name
     if (profile?.display_name) return profile.display_name
     if (user?.user_metadata?.full_name) return user.user_metadata.full_name
     
@@ -59,12 +98,18 @@ export default function UserVideos() {
       if (emailToNameMap[user.email]) {
         return emailToNameMap[user.email]
       }
+  // Determine current user's role (considering impersonation)
+  const getCurrentUserRole = (): UserRole => {
+    // If impersonating, use the impersonated user's role
+    if (isImpersonating && impersonatedUser) {
+      return impersonatedUser.role
     }
     
-    // Fallback to email username
-    return user?.email?.split('@')[0] || 'User'
-  }
-
+    // Otherwise use original user's role
+    // Check profile first (if available)
+    if (profile?.role) {
+      return profile.role
+    }
   // Determine current user's role
   const getCurrentUserRole = (): UserRole => {
     // Check profile first (if available)
