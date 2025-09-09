@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from './ThemeProvider'
 import ChangePassword from './ChangePassword'
 import { hasAdminAccess, getRoleDisplay } from '@/utils/roles'
 import type { User } from '@supabase/supabase-js'
-import type { Profile, UserRole } from '@/types/supabase'
+import type { Profile } from '@/types/supabase'
 
 interface GlobalHeaderProps {
   user: User
@@ -97,10 +99,13 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
           <div className="flex items-center justify-between h-16 px-0">
             {/* Left: Logo and Title */}
             <div className="flex items-center">
-              <img 
+              <Image 
                 src="/Sparky AI.gif" 
                 alt="Sparky AI" 
-                className="w-8 h-8 mr-3 rounded-lg ml-2"
+                width={32}
+                height={32}
+                className="mr-3 rounded-lg ml-2"
+                unoptimized
               />
               <span className="text-xl font-bold text-gray-900 dark:text-white">
                 Sparky Screen Recorder
@@ -110,7 +115,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
             {/* Center: Navigation Buttons */}
             <div className="flex items-center space-x-3">
               {/* Home Button */}
-              <a
+              <Link
                 href="/"
                 className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
               >
@@ -118,58 +123,58 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011 1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
                 <span>Home</span>
-              </a>
+              </Link>
               
               {/* Customers Button - Available for all logged-in users */}
               {profile && (
-                <a
+                <Link
                   href="/customers"
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                 >
                   <span>🏢</span>
                   <span>Customers</span>
-                </a>
+                </Link>
               )}
 
               {/* Admin Dashboard Buttons - Only for authorized users */}
               {profile?.role && hasAdminAccess(profile.role) && (
                 <div className="flex items-center space-x-3">
-                  <a
+                  <Link
                     href="/admin?tab=videos"
                     className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                   >
                     <span>🎥</span>
                     <span>Videos</span>
-                  </a>
-                  <a
+                  </Link>
+                  <Link
                     href="/admin?tab=hierarchy"
                     className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-500 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                   >
                     <span>🏗️</span>
                     <span>Hierarchy</span>
-                  </a>
+                  </Link>
                   {/* Users - Only for Supervisors and Admins */}
                   {profile.role !== 'manager' && (
-                    <a
+                    <Link
                       href="/admin?tab=users"
                       className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                     >
                       <span>👥</span>
                       <span>Users</span>
-                    </a>
+                    </Link>
                   )}
                 </div>
               )}
               
               {/* Admin Panel Button - Only for authorized users */}
               {profile?.role && hasAdminAccess(profile.role) && (
-                <a
+                <Link
                   href="/admin"
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                 >
                   <span>🔧</span>
                   <span>Admin Panel</span>
-                </a>
+                </Link>
               )}
             </div>
             
