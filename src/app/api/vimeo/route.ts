@@ -211,7 +211,8 @@ export async function PATCH(request: Request) {
     }
     
     if (action === 'move-folder') {
-      const { sourceFolderId, targetFolderId } = await request.json()
+      const body = await request.json()
+      const { sourceFolderId, targetFolderId } = body
       
       if (!sourceFolderId || !targetFolderId) {
         return NextResponse.json({ 
