@@ -139,13 +139,16 @@ export class VimeoService {
     }
   }
 
-  async createFolder(name: string, parentProjectId = '26524560'): Promise<VimeoFolder> {
+  async createFolder(name: string, parentFolderId = '26524560'): Promise<VimeoFolder> {
     // Try to create folder inside the SSR folder first
     try {
-      console.log(`Attempting to create folder "${name}" in SSR folder ${parentProjectId}`)
-      return await this.makeRequest(`/me/projects/${parentProjectId}/folders`, {
+      console.log(`Attempting to create folder "${name}" in SSR folder ${parentFolderId}`)
+      return await this.makeRequest(`/me/folders`, {
         method: 'POST',
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ 
+          name,
+          parent_folder_uri: `/folders/${parentFolderId}`
+        })
       })
     } catch (error) {
       console.warn(`Failed to create folder in SSR folder, falling back to root level:`, error)
@@ -238,10 +241,11 @@ export class VimeoService {
       // Step 2: Try to create new customer folder inside SSR folder
       console.log('Creating customer folder:', customerFolderName, 'inside SSR folder')
       try {
-        const customerFolder = await this.makeRequest(`/me/folders/${ssrFolderId}/folders`, {
+        const customerFolder = await this.makeRequest(`/me/folders`, {
           method: 'POST',
           body: JSON.stringify({
-            name: customerFolderName
+            name: customerFolderName,
+            parent_folder_uri: `/folders/${ssrFolderId}`
           })
         })
       
