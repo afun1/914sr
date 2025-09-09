@@ -65,7 +65,7 @@ export default function UserVideos() {
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [user])
 
-  // Create display name function with liaison mapping (considering impersonation)
+  // Create display name function with liaison mapping
   const getDisplayName = () => {
     // If impersonating, use the impersonated user's name
     if (isImpersonating && impersonatedUser) {
@@ -98,7 +98,13 @@ export default function UserVideos() {
       if (emailToNameMap[user.email]) {
         return emailToNameMap[user.email]
       }
-  // Determine current user's role (considering impersonation)
+    }
+    
+    // Fallback to email username
+    return user?.email?.split('@')[0] || 'User'
+  }
+
+  // Determine current user's role
   const getCurrentUserRole = (): UserRole => {
     // If impersonating, use the impersonated user's role
     if (isImpersonating && impersonatedUser) {
@@ -106,12 +112,6 @@ export default function UserVideos() {
     }
     
     // Otherwise use original user's role
-    // Check profile first (if available)
-    if (profile?.role) {
-      return profile.role
-    }
-  // Determine current user's role
-  const getCurrentUserRole = (): UserRole => {
     // Check profile first (if available)
     if (profile?.role) {
       return profile.role
