@@ -118,6 +118,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
               <Link
                 href="/"
                 className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                prefetch={true}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011 1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -126,22 +127,22 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
               </Link>
               
               {/* Customers Button - Available for all logged-in users */}
-              {profile && (
-                <Link
-                  href="/customers"
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                >
-                  <span>🏢</span>
-                  <span>Customers</span>
-                </Link>
-              )}
+              <Link
+                href="/customers"
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                prefetch={true}
+              >
+                <span>🏢</span>
+                <span>Customers</span>
+              </Link>
 
               {/* Admin Dashboard Buttons - Only for authorized users */}
-              {profile?.role && hasAdminAccess(profile.role) && (
+              {(profile?.role && hasAdminAccess(profile.role)) && (
                 <div className="flex items-center space-x-3">
                   <Link
                     href="/admin?tab=videos"
                     className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                    prefetch={true}
                   >
                     <span>🎥</span>
                     <span>Videos</span>
@@ -149,6 +150,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                   <Link
                     href="/admin?tab=hierarchy"
                     className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-500 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                    prefetch={true}
                   >
                     <span>🏗️</span>
                     <span>Hierarchy</span>
@@ -158,6 +160,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                     <Link
                       href="/admin?tab=users"
                       className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                      prefetch={true}
                     >
                       <span>👥</span>
                       <span>Users</span>
@@ -167,10 +170,11 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
               )}
               
               {/* Admin Panel Button - Only for authorized users */}
-              {profile?.role && hasAdminAccess(profile.role) && (
+              {(profile?.role && hasAdminAccess(profile.role)) && (
                 <Link
                   href="/admin"
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                  prefetch={true}
                 >
                   <span>🔧</span>
                   <span>Admin Panel</span>
