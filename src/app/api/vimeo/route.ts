@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH endpoint for organizing folders
+// PATCH endpoint for organizing folders and debugging
 export async function PATCH(request: Request) {
   try {
     const { action } = await request.json()
@@ -210,6 +210,19 @@ export async function PATCH(request: Request) {
       })
     }
     
+    if (action === 'debug-folders') {
+      const vimeo = new VimeoService()
+      
+      // Get all folders at root level
+      const rootFolders = await vimeo.getAllFolders()
+      
+      return NextResponse.json({ 
+        success: true,
+        folders: rootFolders,
+        message: `Found ${rootFolders.length} folders in account`
+      })
+    }
+    
     return NextResponse.json({ 
       error: 'Unknown action' 
     }, { status: 400 })
@@ -217,7 +230,7 @@ export async function PATCH(request: Request) {
   } catch (error) {
     console.error('Error in PATCH /api/vimeo:', error)
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Failed to organize folders' 
+      error: error instanceof Error ? error.message : 'Failed to process request' 
     }, { status: 500 })
   }
 }

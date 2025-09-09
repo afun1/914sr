@@ -324,6 +324,17 @@ ${customMetadata.description || ''}`
     })
   }
 
+  // Public method to get all folders for debugging
+  async getAllFolders(): Promise<any[]> {
+    try {
+      const response = await this.makeRequest('/me/folders')
+      return response.data || []
+    } catch (error) {
+      console.error('Error getting folders:', error)
+      return []
+    }
+  }
+
   // Manual folder organization utility
   async organizeFoldersIntoSSR(): Promise<void> {
     try {
