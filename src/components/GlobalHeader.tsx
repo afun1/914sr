@@ -94,7 +94,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
 
   return (
     <>
-      <header className="bg-white dark:bg-gray-900 shadow-lg border-b border-gray-200 dark:border-gray-800">
+      <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-lg border-b border-gray-200 dark:border-gray-800">
         <div className="w-full">
           <div className="flex items-center justify-between h-16 px-0">
             {/* Left: Logo and Title */}
@@ -139,7 +139,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
               {/* Admin Dashboard Buttons - Always visible, pages handle permissions */}
               <div className="flex items-center space-x-3">
                 <Link
-                  href="/admin?tab=videos"
+                  href="/videos"
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                   prefetch={true}
                 >
@@ -147,7 +147,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                   <span>Videos</span>
                 </Link>
                 <Link
-                  href="/admin?tab=hierarchy"
+                  href="/hierarchy"
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-500 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                   prefetch={true}
                 >
@@ -155,7 +155,7 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                   <span>Hierarchy</span>
                 </Link>
                 <Link
-                  href="/admin?tab=users"
+                  href="/users"
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                   prefetch={true}
                 >
