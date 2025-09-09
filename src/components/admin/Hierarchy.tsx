@@ -13,6 +13,35 @@ export default function Hierarchy({ userRole }: HierarchyProps) {
   const [assignments, setAssignments] = useState<UserAssignment[]>([])
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [effectiveRole, setEffectiveRole] = useState<string>(userRole)
+  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
+
+  // Check for impersonation and get effective role
+  useEffect(() => {
+    const checkImpersonation = () => {
+      const impersonationActive = localStorage.getItem('impersonation_active')
+      const impersonatedUserData = localStorage.getItem('impersonation_target')
+      
+      if (impersonationActive === 'true' && impersonatedUserData) {
+        const impersonated = JSON.parse(impersonatedUserData)
+        setImpersonatedUser(impersonated)
+        setEffectiveRole(impersonated.role)
+        console.log('🎭 Impersonation detected in Hierarchy:', {
+          originalRole: userRole,
+          effectiveRole: impersonated.role,
+          impersonatedUser: impersonated
+        })
+      } else {
+        setImpersonatedUser(null)
+        setEffectiveRole(userRole)
+      }
+    }
+
+    checkImpersonation()
+    
+    window.addEventListener('storage', checkImpersonation)
+    return () => window.removeEventListener('storage', checkImpersonation)
+  }, [userRole])
 
   useEffect(() => {
     fetchData()

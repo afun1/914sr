@@ -51,6 +51,40 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10)
   const [currentPage, setCurrentPage] = useState(1)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [effectiveRole, setEffectiveRole] = useState<UserRole>(userRole)
+  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
+
+  // Check for impersonation and get effective role
+  useEffect(() => {
+    const checkImpersonation = () => {
+      const impersonationActive = localStorage.getItem('impersonation_active')
+      const impersonatedUserData = localStorage.getItem('impersonation_target')
+      
+      if (impersonationActive === 'true' && impersonatedUserData) {
+        const impersonated = JSON.parse(impersonatedUserData)
+        setImpersonatedUser(impersonated)
+        setEffectiveRole(impersonated.role as UserRole)
+        console.log('🎭 Impersonation detected in VideoManagement:', {
+          originalRole: userRole,
+          effectiveRole: impersonated.role,
+          impersonatedUser: impersonated
+        })
+      } else {
+        setImpersonatedUser(null)
+        setEffectiveRole(userRole)
+      }
+    }
+
+    checkImpersonation()
+    
+    // Listen for storage changes (in case impersonation starts/stops on another tab)
+    const handleStorageChange = () => {
+      checkImpersonation()
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [userRole])
 
   useEffect(() => {
     console.log('🔍 VideoManagement: Getting current user...')
@@ -89,22 +123,25 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
     }
   }
 
-  // Filter videos based on user role and assignments
+  // Filter videos based on user role and assignments (accounting for impersonation)
   const filterVideosByRole = (allVideos: VimeoVideo[]): VimeoVideo[] => {
-    console.log('🔍 VideoManagement Filter Debug:')
-    console.log('Current user:', currentUser)
-    console.log('User role:', userRole)
-    console.log('All videos count:', allVideos.length)
-    console.log('userRole === "admin":', userRole === 'admin')
-    console.log('hasAdminAccess(userRole):', hasAdminAccess(userRole))
+    const activeUser = impersonatedUser || currentUser
+    const activeRole = effectiveRole
     
-    // Admins and supervisors see all videos
-    if (userRole === 'admin' || userRole === 'supervisor') {
+    console.log('🔍 VideoManagement Filter Debug:')
+    console.log('Original role:', userRole)
+    console.log('Effective role (with impersonation):', activeRole)
+    console.log('Active user:', activeUser)
+    console.log('Is impersonating:', !!impersonatedUser)
+    console.log('All videos count:', allVideos.length)
+    
+    // Admins and supervisors see all videos (unless impersonating)
+    if (activeRole === 'admin' || activeRole === 'supervisor') {
       console.log('✅ Admin/Supervisor access - showing all videos')
       return allVideos
     }
     
-    if (userRole === 'manager') {
+    if (activeRole === 'manager') {
       // Managers only see videos from their assigned users and their own videos
       const filteredVideos = allVideos.filter(video => {
         const parsed = parseCustomerInfo(video.description || '')
@@ -114,29 +151,27 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
           title: video.name,
           recordedBy,
           description: video.description,
-          currentUserName: currentUser?.name,
-          currentUserEmail: currentUser?.email
+          activeUserName: activeUser?.display_name || activeUser?.name,
+          activeUserEmail: activeUser?.email
         })
         
         // Can see their own videos
-        if (recordedBy === currentUser?.name || recordedBy === currentUser?.email) {
-          console.log('✅ Video matches current user')
+        if (recordedBy === activeUser?.display_name || recordedBy === activeUser?.name || recordedBy === activeUser?.email) {
+          console.log('✅ Video matches active user')
           return true
         }
         
-        // Check if the video creator is assigned to this supervisor/manager
-        // For now, using localStorage assignments (in production, this would be from database)
+        // Check if the video creator is assigned to this manager
         try {
           const assignments = JSON.parse(localStorage.getItem('assignments') || '[]')
           const myAssignments = assignments.filter((assignment: any) => 
-            assignment.assignor_id === currentUser?.id
+            assignment.assignor_id === activeUser?.id
           )
           
-          console.log('My assignments:', myAssignments)
+          console.log('My assignments as manager:', myAssignments)
           
-          // Check if the video creator is in the supervisor/manager's assigned users
+          // Check if the video creator is in the manager's assigned users
           const isAssigned = myAssignments.some((assignment: any) => {
-            // Match by display name or email from video description
             return assignment.assignee?.name === recordedBy || 
                    assignment.assignee?.email === recordedBy
           })
@@ -159,16 +194,26 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
     }
     
     // Regular users only see their own videos
-    if (userRole === 'user') {
+    if (activeRole === 'user') {
+      console.log('👤 User access - showing only own videos')
       return allVideos.filter(video => {
         const parsed = parseCustomerInfo(video.description || '')
         const recordedBy = parsed.userDisplayName
         
+        console.log('Checking user video:', {
+          title: video.name,
+          recordedBy,
+          activeUserName: activeUser?.display_name || activeUser?.name,
+          activeUserEmail: activeUser?.email,
+          matches: recordedBy === activeUser?.display_name || recordedBy === activeUser?.name || recordedBy === activeUser?.email
+        })
+        
         // User can only see their own videos
-        return recordedBy === currentUser?.name || recordedBy === currentUser?.email
+        return recordedBy === activeUser?.display_name || recordedBy === activeUser?.name || recordedBy === activeUser?.email
       })
     }
     
+    console.log('❌ No role match - returning empty array')
     return []
   }
   const [showDescriptionModal, setShowDescriptionModal] = useState(false)
@@ -290,11 +335,21 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Video Management</h2>
           <div className="flex items-center space-x-4 mt-2">
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              {parsedVideos.length} {userRole === 'manager' ? 'assigned user' : 'total'} videos
+              {parsedVideos.length} {effectiveRole === 'manager' ? 'assigned user' : effectiveRole === 'user' ? 'personal' : 'total'} videos
             </span>
-            {userRole === 'manager' && (
+            {impersonatedUser && (
+              <span className="px-3 py-1 text-sm bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full border border-yellow-300">
+                🎭 Viewing as: {impersonatedUser.display_name || impersonatedUser.email} ({effectiveRole})
+              </span>
+            )}
+            {effectiveRole === 'manager' && !impersonatedUser && (
               <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
                 Manager View: Assigned User Videos Only
+              </span>
+            )}
+            {effectiveRole === 'user' && !impersonatedUser && (
+              <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded-full">
+                User View: Personal Videos Only
               </span>
             )}
           </div>

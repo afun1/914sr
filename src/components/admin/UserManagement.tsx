@@ -26,6 +26,35 @@ export default function UserManagement({ userRole }: UserManagementProps) {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set())
   const [deletingUsers, setDeletingUsers] = useState(false)
   const [impersonating, setImpersonating] = useState(false)
+  const [effectiveRole, setEffectiveRole] = useState<UserRole>(userRole)
+  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
+
+  // Check for impersonation and get effective role
+  useEffect(() => {
+    const checkImpersonation = () => {
+      const impersonationActive = localStorage.getItem('impersonation_active')
+      const impersonatedUserData = localStorage.getItem('impersonation_target')
+      
+      if (impersonationActive === 'true' && impersonatedUserData) {
+        const impersonated = JSON.parse(impersonatedUserData)
+        setImpersonatedUser(impersonated)
+        setEffectiveRole(impersonated.role as UserRole)
+        console.log('🎭 Impersonation detected in UserManagement:', {
+          originalRole: userRole,
+          effectiveRole: impersonated.role,
+          impersonatedUser: impersonated
+        })
+      } else {
+        setImpersonatedUser(null)
+        setEffectiveRole(userRole)
+      }
+    }
+
+    checkImpersonation()
+    
+    window.addEventListener('storage', checkImpersonation)
+    return () => window.removeEventListener('storage', checkImpersonation)
+  }, [userRole])
 
   useEffect(() => {
     getCurrentUser()
@@ -215,6 +244,7 @@ export default function UserManagement({ userRole }: UserManagementProps) {
     // Only admins and supervisors can impersonate
     // Admins can impersonate anyone except other admins
     // Supervisors can only impersonate managers and users
+    // Use the original role for impersonation permissions (not effective role)
     if (userRole === 'admin') {
       return targetRole !== 'admin'
     } else if (userRole === 'supervisor') {
@@ -576,9 +606,14 @@ export default function UserManagement({ userRole }: UserManagementProps) {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">User Management</h2>
           <div className="flex items-center space-x-4 mt-2">
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              {users.length} {userRole === 'manager' ? 'assigned' : 'total'} users
+              {users.length} {effectiveRole === 'manager' ? 'assigned' : 'total'} users
             </span>
-            {userRole === 'manager' && (
+            {impersonatedUser && (
+              <span className="px-3 py-1 text-sm bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded-full border border-yellow-300">
+                🎭 Viewing as: {impersonatedUser.display_name || impersonatedUser.email} ({effectiveRole})
+              </span>
+            )}
+            {effectiveRole === 'manager' && !impersonatedUser && (
               <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 rounded-full">
                 Manager View: Assigned Users Only
               </span>
@@ -730,14 +765,14 @@ export default function UserManagement({ userRole }: UserManagementProps) {
                 </td>
                 {/* Role column - dropdown for admins, static for others */}
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {userRole === 'admin' ? (
+                  {effectiveRole === 'admin' ? (
                     <select
                       value={user.role}
                       onChange={(e) => updateUserRole(user.id, e.target.value as UserRole)}
                       disabled={updatingRole}
                       className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[120px]"
                     >
-                      {getAssignableRoles(userRole).map(role => (
+                      {getAssignableRoles(effectiveRole).map(role => (
                         <option key={role} value={role}>
                           {getRoleDisplay(role).icon} {getRoleDisplay(role).label}
                         </option>
