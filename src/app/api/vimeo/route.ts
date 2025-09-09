@@ -194,3 +194,30 @@ export async function POST(request: NextRequest) {
     }, { status: 500 })
   }
 }
+
+// PATCH endpoint for organizing folders
+export async function PATCH(request: Request) {
+  try {
+    const { action } = await request.json()
+    
+    if (action === 'organize-folders') {
+      const vimeo = new VimeoService()
+      await vimeo.organizeFoldersIntoSSR()
+      
+      return NextResponse.json({ 
+        success: true,
+        message: 'Folder organization completed. Check console logs for details.'
+      })
+    }
+    
+    return NextResponse.json({ 
+      error: 'Unknown action' 
+    }, { status: 400 })
+    
+  } catch (error) {
+    console.error('Error in PATCH /api/vimeo:', error)
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Failed to organize folders' 
+    }, { status: 500 })
+  }
+}

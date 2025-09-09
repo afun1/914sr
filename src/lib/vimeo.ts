@@ -323,6 +323,77 @@ ${customMetadata.description || ''}`
       body: JSON.stringify(uploadData)
     })
   }
+
+  // Manual folder organization utility
+  async organizeFoldersIntoSSR(): Promise<void> {
+    try {
+      console.log('Starting folder organization into SSR...')
+      
+      // Get all folders at root level
+      const rootFolders = await this.makeRequest('/me/folders')
+      console.log('Found root folders:', rootFolders.data?.length)
+      
+      // Get existing folders in SSR to avoid duplicates
+      const ssrFolderId = '26524560'
+      let ssrSubfolders: any[] = []
+      
+      try {
+        const ssrContent = await this.makeRequest(`/me/folders/${ssrFolderId}/folders`)
+        ssrSubfolders = ssrContent.data || []
+        console.log('Existing SSR subfolders:', ssrSubfolders.length)
+      } catch (error) {
+        console.log('Could not get SSR subfolders, proceeding anyway:', error)
+      }
+      
+      // Find customer folders that should be moved (exclude SSR itself)
+      const customerFolders = rootFolders.data?.filter((folder: any) => {
+        const folderId = folder.uri.split('/').pop()
+        return folderId !== ssrFolderId && 
+               !ssrSubfolders.find(sub => sub.name === folder.name)
+      })
+      
+      console.log('Customer folders to organize:', customerFolders?.length)
+      
+      // Try to move each customer folder into SSR
+      for (const folder of customerFolders || []) {
+        const folderId = folder.uri.split('/').pop()
+        console.log(`Attempting to move folder "${folder.name}" (${folderId}) into SSR`)
+        
+        try {
+          // Try method 1: PATCH with parent_folder_uri
+          await this.makeRequest(`/me/folders/${folderId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              parent_folder_uri: `/me/folders/${ssrFolderId}`
+            })
+          })
+          console.log(`✅ Successfully moved "${folder.name}" into SSR`)
+          
+        } catch (moveError) {
+          console.log(`❌ Failed to move "${folder.name}":`, moveError)
+          
+          // Try method 2: Different URI format
+          try {
+            await this.makeRequest(`/me/folders/${folderId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                parent_folder_uri: `/folders/${ssrFolderId}`
+              })
+            })
+            console.log(`✅ Successfully moved "${folder.name}" into SSR (method 2)`)
+          } catch (move2Error) {
+            console.log(`❌ Method 2 also failed for "${folder.name}":`, move2Error)
+          }
+        }
+      }
+      
+      console.log('Folder organization complete')
+      
+    } catch (error) {
+      console.error('Error in organizeFoldersIntoSSR:', error)
+      throw error
+    }
+  }
 }
 
 export default VimeoService
