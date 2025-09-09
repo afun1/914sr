@@ -19,6 +19,9 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [isImpersonating, setIsImpersonating] = useState(false)
+  const [originalUser, setOriginalUser] = useState<any>(null)
+  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Create display name function with liaison mapping
@@ -71,7 +74,24 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
       }
     }
 
+    const checkImpersonation = () => {
+      const impersonationActive = localStorage.getItem('impersonation_active')
+      const originalUserData = localStorage.getItem('impersonation_original_user')
+      const impersonatedUserData = localStorage.getItem('impersonation_target')
+
+      if (impersonationActive === 'true' && originalUserData && impersonatedUserData) {
+        setIsImpersonating(true)
+        setOriginalUser(JSON.parse(originalUserData))
+        setImpersonatedUser(JSON.parse(impersonatedUserData))
+      } else {
+        setIsImpersonating(false)
+        setOriginalUser(null)
+        setImpersonatedUser(null)
+      }
+    }
+
     fetchProfile()
+    checkImpersonation()
   }, [user])
 
   useEffect(() => {
@@ -92,8 +112,38 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
     window.location.href = '/'
   }
 
+  const handleStopImpersonation = () => {
+    // Clear impersonation data
+    localStorage.removeItem('impersonation_active')
+    localStorage.removeItem('impersonation_original_user')
+    localStorage.removeItem('impersonation_target')
+    
+    // Notify user
+    alert('🎭 Impersonation stopped. Returning to your original account.')
+    
+    // Reload to restore original user context
+    window.location.reload()
+  }
+
   return (
     <>
+      {/* Impersonation Banner */}
+      {isImpersonating && (
+        <div className="bg-yellow-500 text-black px-4 py-2 text-center text-sm font-medium sticky top-0 z-50">
+          <div className="flex items-center justify-center space-x-4">
+            <span>
+              🎭 <strong>IMPERSONATION ACTIVE:</strong> You are viewing as {impersonatedUser?.display_name || impersonatedUser?.email}
+            </span>
+            <button
+              onClick={handleStopImpersonation}
+              className="bg-black text-yellow-500 px-3 py-1 rounded text-xs font-bold hover:bg-gray-800 transition-colors"
+            >
+              Stop Impersonation
+            </button>
+          </div>
+        </div>
+      )}
+      
       <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-lg border-b border-gray-200 dark:border-gray-800">
         <div className="w-full">
           <div className="flex items-center justify-between h-16 px-0">
@@ -240,6 +290,19 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                           </>
                         )}
                       </button>
+                      
+                      {isImpersonating && (
+                        <button
+                          onClick={() => {
+                            handleStopImpersonation()
+                            setShowDropdown(false)
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-yellow-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 border-t border-gray-200 dark:border-gray-700"
+                        >
+                          <span>🎭</span>
+                          <span>Stop Impersonation</span>
+                        </button>
+                      )}
                       
                       <button
                         onClick={handleSignOut}

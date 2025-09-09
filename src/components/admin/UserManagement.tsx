@@ -25,6 +25,7 @@ export default function UserManagement({ userRole }: UserManagementProps) {
   const [assigning, setAssigning] = useState(false)
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set())
   const [deletingUsers, setDeletingUsers] = useState(false)
+  const [impersonating, setImpersonating] = useState(false)
 
   useEffect(() => {
     getCurrentUser()
@@ -208,6 +209,91 @@ export default function UserManagement({ userRole }: UserManagementProps) {
       return targetUserRole === 'user'
     }
     return false
+  }
+
+  const canImpersonateUser = (targetRole: UserRole): boolean => {
+    // Only admins and supervisors can impersonate
+    // Admins can impersonate anyone except other admins
+    // Supervisors can only impersonate managers and users
+    if (userRole === 'admin') {
+      return targetRole !== 'admin'
+    } else if (userRole === 'supervisor') {
+      return targetRole === 'manager' || targetRole === 'user'
+    }
+    return false
+  }
+
+  const handleImpersonation = async (targetUser: Profile) => {
+    if (!canImpersonateUser(targetUser.role)) {
+      alert('You do not have permission to impersonate this user.')
+      return
+    }
+
+    const confirmed = confirm(
+      `Are you sure you want to impersonate ${targetUser.display_name || targetUser.email}?\n\n` +
+      `This will:\n` +
+      `• Log you in as this user\n` +
+      `• Give you access to their data and permissions\n` +
+      `• Record this action in the audit log\n\n` +
+      `Click OK to proceed with impersonation.`
+    )
+
+    if (!confirmed) return
+
+    setImpersonating(true)
+    
+    try {
+      // Store the original admin user info for later restoration
+      const originalUser = currentUser
+      if (originalUser) {
+        // Store in localStorage so we can restore later
+        localStorage.setItem('impersonation_original_user', JSON.stringify({
+          id: originalUser.id,
+          email: originalUser.email,
+          role: originalUser.role,
+          display_name: originalUser.display_name
+        }))
+        localStorage.setItem('impersonation_active', 'true')
+        localStorage.setItem('impersonation_target', JSON.stringify({
+          id: targetUser.id,
+          email: targetUser.email,
+          role: targetUser.role,
+          display_name: targetUser.display_name
+        }))
+      }
+
+      // Create audit log entry
+      const { error: auditError } = await supabase
+        .from('profiles')
+        .insert({
+          id: crypto.randomUUID(),
+          email: `audit-${Date.now()}@system.internal`,
+          display_name: `AUDIT: ${currentUser?.email} impersonated ${targetUser.email}`,
+          role: 'user',
+          created_at: new Date().toISOString()
+        })
+
+      if (auditError) {
+        console.warn('Failed to create audit log:', auditError)
+      }
+
+      // Notify user of impersonation start
+      alert(
+        `🎭 Impersonation Active\n\n` +
+        `You are now logged in as: ${targetUser.display_name || targetUser.email}\n` +
+        `Original user: ${currentUser?.display_name || currentUser?.email}\n\n` +
+        `To stop impersonation, look for the "Stop Impersonation" button in the header.`
+      )
+
+      // Refresh the page to apply the impersonation context
+      window.location.reload()
+      
+    } catch (error) {
+      console.error('Impersonation failed:', error)
+      alert('Failed to start impersonation. Please try again.')
+    } finally {
+      setImpersonating(false)
+    }
   }
 
   const getAssignableTargets = (assigneeRole: UserRole): Profile[] => {
@@ -698,6 +784,16 @@ export default function UserManagement({ userRole }: UserManagementProps) {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">
+                    {canImpersonateUser(user.role) && (
+                      <button
+                        onClick={() => handleImpersonation(user)}
+                        disabled={impersonating}
+                        className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={`Impersonate ${user.display_name || user.email}`}
+                      >
+                        🎭 Impersonate
+                      </button>
+                    )}
                     {canAssignUser(user.role) && (
                       <button
                         onClick={() => {
