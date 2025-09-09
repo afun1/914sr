@@ -175,36 +175,72 @@ export class VimeoService {
     try {
       console.log('Creating user folder:', userDisplayName)
       
-      // Use clean naming convention for the user folder
-      const folderName = `${userDisplayName} - Sparky Recordings`
+      // Step 1: Find or create the "Sparky Screen Recordings" parent folder
+      let parentFolder: VimeoFolder | null = null
+      const parentFolderName = "Sparky Screen Recordings"
       
-      // First, check if this folder already exists
       try {
         const folders = await this.makeRequest('/me/folders')
-        const existingFolder = folders.data?.find((folder: any) => 
-          folder.name === folderName
+        parentFolder = folders.data?.find((folder: any) => 
+          folder.name === parentFolderName
         )
         
-        if (existingFolder) {
-          console.log('Found existing user folder:', existingFolder.name)
-          return existingFolder
+        if (!parentFolder) {
+          console.log('Creating parent folder:', parentFolderName)
+          parentFolder = await this.makeRequest('/me/folders', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: parentFolderName
+            })
+          })
+          console.log('Created parent folder:', parentFolder)
+        } else {
+          console.log('Found existing parent folder:', parentFolder.name)
         }
       } catch (error) {
-        console.log('Could not check existing folders, proceeding to create new one')
+        console.error('Error with parent folder:', error)
+        throw error
       }
       
-      // Create new folder at the root level
-      console.log('Creating new user folder:', folderName)
-      const newFolder = await this.makeRequest('/me/folders', {
+      // Step 2: Create or find customer folder inside parent folder
+      const customerFolderName = userDisplayName
+      
+      // Check if customer folder already exists in parent folder
+      try {
+        if (!parentFolder) {
+          throw new Error('Parent folder not found')
+        }
+        
+        const parentFolderId = parentFolder.uri.split('/').pop()
+        const subFolders = await this.makeRequest(`/me/folders/${parentFolderId}/folders`)
+        const existingCustomerFolder = subFolders.data?.find((folder: any) => 
+          folder.name === customerFolderName
+        )
+        
+        if (existingCustomerFolder) {
+          console.log('Found existing customer folder:', existingCustomerFolder.name)
+          return existingCustomerFolder
+        }
+      } catch (error) {
+        console.log('Could not check existing sub-folders, proceeding to create new one')
+      }
+      
+      // Create new customer folder inside parent folder
+      if (!parentFolder) {
+        throw new Error('Parent folder required but not found')
+      }
+      
+      console.log('Creating customer folder:', customerFolderName, 'inside parent folder')
+      const parentFolderId = parentFolder.uri.split('/').pop()
+      const customerFolder = await this.makeRequest(`/me/folders/${parentFolderId}/folders`, {
         method: 'POST',
         body: JSON.stringify({
-          name: folderName
+          name: customerFolderName
         })
       })
       
-      console.log('Created new user folder:', newFolder)
-      console.log('New folder URI:', newFolder.uri)
-      return newFolder
+      console.log('Created customer folder:', customerFolder)
+      return customerFolder
       
     } catch (error) {
       console.error('Error creating user-specific folder:', error)
