@@ -91,16 +91,21 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
 
   // Filter videos based on user role and assignments
   const filterVideosByRole = (allVideos: VimeoVideo[]): VimeoVideo[] => {
+    console.log('🔍 VideoManagement Filter Debug:')
     console.log('Current user:', currentUser)
     console.log('User role:', userRole)
-    console.log('All videos:', allVideos.length)
+    console.log('All videos count:', allVideos.length)
+    console.log('userRole === "admin":', userRole === 'admin')
+    console.log('hasAdminAccess(userRole):', hasAdminAccess(userRole))
     
-    if (userRole === 'admin') {
-      return allVideos // Only admins see all videos
+    // Admins and supervisors see all videos
+    if (userRole === 'admin' || userRole === 'supervisor') {
+      console.log('✅ Admin/Supervisor access - showing all videos')
+      return allVideos
     }
     
-    if (userRole === 'supervisor' || userRole === 'manager') {
-      // Supervisors and Managers only see videos from their assigned users and their own videos
+    if (userRole === 'manager') {
+      // Managers only see videos from their assigned users and their own videos
       const filteredVideos = allVideos.filter(video => {
         const parsed = parseCustomerInfo(video.description || '')
         const recordedBy = parsed.userDisplayName

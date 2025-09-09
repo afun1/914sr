@@ -136,43 +136,47 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                 <span>Customers</span>
               </Link>
 
-              {/* Admin Dashboard Buttons - Always show, pages handle permissions */}
-              <div className="flex items-center space-x-3">
-                <Link
-                  href="/admin?tab=videos"
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                  prefetch={true}
-                >
-                  <span>🎥</span>
-                  <span>Videos</span>
-                </Link>
-                <Link
-                  href="/admin?tab=hierarchy"
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-500 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                  prefetch={true}
-                >
-                  <span>🏗️</span>
-                  <span>Hierarchy</span>
-                </Link>
-                <Link
-                  href="/admin?tab=users"
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                  prefetch={true}
-                >
-                  <span>👥</span>
-                  <span>Users</span>
-                </Link>
-              </div>
+              {/* Admin Dashboard Buttons - Available for managers and above */}
+              {(!profile?.role || hasAdminAccess(profile.role)) && (
+                <div className="flex items-center space-x-3">
+                  <Link
+                    href="/admin?tab=videos"
+                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                    prefetch={true}
+                  >
+                    <span>🎥</span>
+                    <span>Videos</span>
+                  </Link>
+                  <Link
+                    href="/admin?tab=hierarchy"
+                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-pink-400 to-pink-600 hover:from-pink-500 hover:to-pink-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                    prefetch={true}
+                  >
+                    <span>🏗️</span>
+                    <span>Hierarchy</span>
+                  </Link>
+                  <Link
+                    href="/admin?tab=users"
+                    className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                    prefetch={true}
+                  >
+                    <span>👥</span>
+                    <span>Users</span>
+                  </Link>
+                </div>
+              )}
               
-              {/* Admin Panel Button - Always show, page handles permissions */}
-              <Link
-                href="/admin"
-                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
-                prefetch={true}
-              >
-                <span>🔧</span>
-                <span>Admin Panel</span>
-              </Link>
+              {/* Admin Panel Button - Available for managers and above */}
+              {(!profile?.role || hasAdminAccess(profile.role)) && (
+                <Link
+                  href="/admin"
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
+                  prefetch={true}
+                >
+                  <span>🔧</span>
+                  <span>Admin Panel</span>
+                </Link>
+              )}
             </div>
             
             {/* Right: User Menu */}
