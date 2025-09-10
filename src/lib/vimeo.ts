@@ -187,25 +187,95 @@ export class VimeoService {
 
   // Creates a folder for a specific liaison (not customer) since customers may work with multiple liaisons
   async createUserSpecificFolder(userDisplayName: string, userEmail: string): Promise<VimeoFolder> {
+    console.log('🔍 createUserSpecificFolder called with:', { userDisplayName, userEmail })
     try {
       console.log('Creating/finding liaison folder:', userDisplayName)
       
-      // Use the existing SSR project (ID: 26555277) directly for all recordings
+      // Use the existing SSR project (ID: 26555277) as parent - Enterprise Account
       const ssrProjectId = '26555277'
-      console.log('Using existing SSR folder directly for all recordings:', ssrProjectId)
+      const liaisonFolderName = userDisplayName
       
-      // Return the SSR folder itself - all videos will go directly into this folder
-      // We'll organize by video naming instead of subfolders since Vimeo doesn't support nested folders well
-      return {
-        uri: `/users/112996063/projects/${ssrProjectId}`,
-        name: 'Sparky Screen Recordings',
-        created_time: '',
-        modified_time: '',
-        resource_key: ''
+      // Step 1: Check if liaison folder already exists inside SSR
+      console.log('Checking for existing liaison folder inside SSR...')
+      try {
+        // Try different API endpoints for getting subfolders
+        let ssrSubfolders;
+        try {
+          // First try: /me/projects/{id}/folders
+          ssrSubfolders = await this.makeRequest(`/me/projects/${ssrProjectId}/folders`)
+          console.log('SSR subfolders found via projects API:', ssrSubfolders.data?.length || 0)
+        } catch (projectError) {
+          console.log('Projects API failed, trying folders API:', projectError instanceof Error ? projectError.message : projectError)
+          // Fallback: /folders/{id}/folders (different base path)
+          ssrSubfolders = await this.makeRequest(`/folders/${ssrProjectId}/folders`)
+          console.log('SSR subfolders found via folders API:', ssrSubfolders.data?.length || 0)
+        }
+        
+        // Look for existing liaison folder
+        const existingFolder = ssrSubfolders.data?.find((folder: any) => 
+          folder.name === liaisonFolderName
+        )
+        
+        if (existingFolder) {
+          console.log('✅ Found existing liaison folder:', existingFolder.name, existingFolder.uri)
+          return {
+            uri: existingFolder.uri,
+            name: existingFolder.name,
+            created_time: existingFolder.created_time,
+            modified_time: existingFolder.modified_time,
+            resource_key: existingFolder.resource_key
+          }
+        }
+      } catch (subfolderError) {
+        console.log('Could not check SSR subfolders:', subfolderError instanceof Error ? subfolderError.message : subfolderError)
+      }
+      
+      // Step 2: Create new folder inside SSR folder using different API approaches
+      console.log('🔨 Creating new liaison folder inside SSR folder:', liaisonFolderName)
+      try {
+        // Try method 1: /me/projects/{id}/folders
+        const newFolder = await this.makeRequest(`/me/projects/${ssrProjectId}/folders`, {
+          method: 'POST',
+          body: JSON.stringify({
+            name: liaisonFolderName
+          })
+        })
+        
+        console.log('✅ Successfully created liaison folder inside SSR (via projects):', newFolder.name)
+        return newFolder
+      } catch (projectCreateError) {
+        console.log('Projects create failed, trying folders API:', projectCreateError instanceof Error ? projectCreateError.message : projectCreateError)
+        
+        try {
+          // Try method 2: /folders/{id}/folders
+          const newFolder = await this.makeRequest(`/folders/${ssrProjectId}/folders`, {
+            method: 'POST',
+            body: JSON.stringify({
+              name: liaisonFolderName
+            })
+          })
+          
+          console.log('✅ Successfully created liaison folder inside SSR (via folders):', newFolder.name)
+          return newFolder
+        } catch (folderCreateError) {
+          console.log('Folders create also failed:', folderCreateError instanceof Error ? folderCreateError.message : folderCreateError)
+          
+          // Try method 3: Creating with parent_folder_uri
+          const newFolder = await this.makeRequest('/me/folders', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: liaisonFolderName,
+              parent_folder_uri: `/users/112996063/projects/${ssrProjectId}`
+            })
+          })
+          
+          console.log('✅ Successfully created liaison folder with parent URI:', newFolder.name)
+          return newFolder
+        }
       }
       
     } catch (outerError) {
-      console.error('❌ Error in createUserSpecificFolder:', outerError)
+      console.error('❌ Error in createUserSpecificFolder:', outerError instanceof Error ? outerError.message : outerError)
       throw outerError
     }
   }
