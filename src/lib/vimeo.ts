@@ -197,7 +197,8 @@ export class VimeoService {
       // Step 1: Check if liaison folder already exists inside SSR
       console.log('Checking for existing liaison folder inside SSR...')
       try {
-        const ssrSubfolders = await this.makeRequest(`/me/projects/${ssrProjectId}/folders`)
+        // SSR is a folder, not a project, so we need to get its subfolders differently
+        const ssrSubfolders = await this.makeRequest(`/me/folders/${ssrProjectId}/folders`)
         console.log('SSR subfolders:', ssrSubfolders.data?.length || 0)
         
         // Look for existing liaison folder
@@ -219,9 +220,9 @@ export class VimeoService {
         console.log('Could not check SSR subfolders, proceeding to create new folder:', subfolderError)
       }
       
-      // Step 2: Create new folder directly inside SSR project
-      console.log('Creating new liaison folder inside SSR project:', liaisonFolderName)
-      const newFolder = await this.makeRequest(`/me/projects/${ssrProjectId}/folders`, {
+      // Step 2: Create new folder directly inside SSR folder
+      console.log('Creating new liaison folder inside SSR folder:', liaisonFolderName)
+      const newFolder = await this.makeRequest(`/me/folders/${ssrProjectId}/folders`, {
         method: 'POST',
         body: JSON.stringify({
           name: liaisonFolderName
