@@ -636,6 +636,7 @@ export default function SmoothScreenRecorder({ userRole = 'user' }: SmoothScreen
           'john+admin@tpnlife.com': 'John Bradshaw',
           'john+1@tpnlife.com': 'John User',
           'john+2@tpnlife.com': 'John Manager',
+          'john+3@tpnlife.com': 'John Supervisor',
           'john+s2@tpnlife.com': 'John S2',
           'john+s3@tpnlife.com': 'John S3',
           'john+user@tpnlife.com': 'John User',
