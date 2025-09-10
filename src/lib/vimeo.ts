@@ -190,19 +190,16 @@ export class VimeoService {
     try {
       console.log('Creating/finding liaison folder:', userDisplayName)
       
-      // Use the existing SSR project (ID: 26555277) as parent - Enterprise Account
-      const ssrProjectId = '26555277'
-      const liaisonFolderName = userDisplayName
+      const liaisonFolderName = `SSR - ${userDisplayName}` // Prefix to distinguish from other folders
       
-      // Step 1: Check if liaison folder already exists inside SSR
-      console.log('Checking for existing liaison folder inside SSR...')
+      // First, try to find if liaison folder already exists at root level
+      console.log('Checking for existing liaison folder at root level...')
       try {
-        // SSR is a folder, not a project, so we need to get its subfolders differently
-        const ssrSubfolders = await this.makeRequest(`/me/folders/${ssrProjectId}/folders`)
-        console.log('SSR subfolders:', ssrSubfolders.data?.length || 0)
+        const rootFolders = await this.makeRequest('/me/folders')
+        console.log('Root folders found:', rootFolders.data?.length || 0)
         
         // Look for existing liaison folder
-        const existingFolder = ssrSubfolders.data?.find((folder: any) => 
+        const existingFolder = rootFolders.data?.find((folder: any) => 
           folder.name === liaisonFolderName
         )
         
@@ -216,20 +213,20 @@ export class VimeoService {
             resource_key: existingFolder.resource_key
           }
         }
-      } catch (subfolderError) {
-        console.log('Could not check SSR subfolders, proceeding to create new folder:', subfolderError)
+      } catch (searchError) {
+        console.log('Could not search for existing folders:', searchError)
       }
       
-      // Step 2: Create new folder directly inside SSR folder
-      console.log('Creating new liaison folder inside SSR folder:', liaisonFolderName)
-      const newFolder = await this.makeRequest(`/me/folders/${ssrProjectId}/folders`, {
+      // Step 2: Create new folder at root level (since nested folders aren't working)
+      console.log('Creating new liaison folder at root level:', liaisonFolderName)
+      const newFolder = await this.makeRequest('/me/folders', {
         method: 'POST',
         body: JSON.stringify({
           name: liaisonFolderName
         })
       })
       
-      console.log('✅ Successfully created liaison folder inside SSR:', newFolder.name)
+      console.log('✅ Successfully created liaison folder:', newFolder.name)
       return newFolder
       
     } catch (outerError) {
