@@ -190,44 +190,19 @@ export class VimeoService {
     try {
       console.log('Creating/finding liaison folder:', userDisplayName)
       
-      const liaisonFolderName = `SSR - ${userDisplayName}` // Prefix to distinguish from other folders
+      // Use the existing SSR project (ID: 26555277) directly for all recordings
+      const ssrProjectId = '26555277'
+      console.log('Using existing SSR folder directly for all recordings:', ssrProjectId)
       
-      // First, try to find if liaison folder already exists at root level
-      console.log('Checking for existing liaison folder at root level...')
-      try {
-        const rootFolders = await this.makeRequest('/me/folders')
-        console.log('Root folders found:', rootFolders.data?.length || 0)
-        
-        // Look for existing liaison folder
-        const existingFolder = rootFolders.data?.find((folder: any) => 
-          folder.name === liaisonFolderName
-        )
-        
-        if (existingFolder) {
-          console.log('✅ Found existing liaison folder:', existingFolder.name)
-          return {
-            uri: existingFolder.uri,
-            name: existingFolder.name,
-            created_time: existingFolder.created_time,
-            modified_time: existingFolder.modified_time,
-            resource_key: existingFolder.resource_key
-          }
-        }
-      } catch (searchError) {
-        console.log('Could not search for existing folders:', searchError)
+      // Return the SSR folder itself - all videos will go directly into this folder
+      // We'll organize by video naming instead of subfolders since Vimeo doesn't support nested folders well
+      return {
+        uri: `/users/112996063/projects/${ssrProjectId}`,
+        name: 'Sparky Screen Recordings',
+        created_time: '',
+        modified_time: '',
+        resource_key: ''
       }
-      
-      // Step 2: Create new folder at root level (since nested folders aren't working)
-      console.log('Creating new liaison folder at root level:', liaisonFolderName)
-      const newFolder = await this.makeRequest('/me/folders', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: liaisonFolderName
-        })
-      })
-      
-      console.log('✅ Successfully created liaison folder:', newFolder.name)
-      return newFolder
       
     } catch (outerError) {
       console.error('❌ Error in createUserSpecificFolder:', outerError)

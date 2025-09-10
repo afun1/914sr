@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
             userFileName,
             folderUri, // Pass the full URI instead of just the ID
             {
-              title: title || `${customerName} - Screen Recording`,
+              title: title || `[${userDisplayName}] ${customerName} - Screen Recording`,
               description: `Customer: ${customerName}\nEmail: ${customerEmail}\nRecorded by: ${userDisplayName}\n\n${description || 'Screen recording session'}`,
               customerName,
               customerEmail
