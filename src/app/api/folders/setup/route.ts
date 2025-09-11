@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       
       // 2. Fetch all videos from Sparky Screen Recordings to find his
       const sparkyVideos = await fetchSparkyFolderVideos()
-      const nicolaasVideo = sparkyVideos.find(video => 
+      const nicolaasVideo = sparkyVideos.find((video: any) => 
         video.title.toLowerCase().includes('nicolaas') ||
         video.description?.toLowerCase().includes('nicolaas')
       )
