@@ -1,6 +1,33 @@
-# ⚡ Sparky Screen Recorder
+# Sparky Screen Recorder
 
-A lightning-fast professional screen recording application built with Next.js, TypeScript, and Supabase authentication.
+A modern screen recording application with intelligent folder management and user organization.
+
+## 🚀 Latest Features
+
+- **Smart Folder Management** - Intelligent user-based organization
+- **Auto-Organization** - Videos automatically sorted by user
+- **User Search & Creation** - Quick folder setup for new users
+- **Impersonation System** - Easy user testing and management
+- **Next.js 15 Compatible** - Latest framework support
+
+## 🎯 Admin Features
+
+- `/folders` - Smart folder management with user search
+- `/users` - User management with impersonation
+- Auto-detection and folder creation for new recordings
+- Purple (simple) and Blue (full setup) folder creation options
+
+## 📋 Technical Stack
+
+- Next.js 15.5.2 with Turbopack
+- Supabase for database and authentication
+- Vimeo API for video storage and organization
+- TypeScript for type safety
+- Tailwind CSS for styling
+
+## 🔧 Deployment Ready
+
+This system is production-ready with comprehensive error handling, user management, and automated video organization.
 
 ## ✨ Features
 
