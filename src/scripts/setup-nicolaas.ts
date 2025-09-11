@@ -34,7 +34,7 @@ Video imported: ${result.videoImported ? 'Yes' : 'No'}`)
     
   } catch (error) {
     console.error('❌ Setup failed:', error)
-    alert('Setup failed: ' + error.message)
+    alert('Setup failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
   }
 }
 
