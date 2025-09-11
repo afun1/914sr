@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
           console.error(`❌ Error setting up folder for ${email}:`, error)
           results.push({
             userEmail: email,
-            error: error.message
+            error: error instanceof Error ? error.message : 'Failed to create folder'
           })
         }
       }
