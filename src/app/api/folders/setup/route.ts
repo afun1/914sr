@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       // Group videos by user (extract from video titles/descriptions)
       const userVideos = new Map()
       
-      sparkyVideos.forEach(video => {
+      sparkyVideos.forEach((video: any) => {
         // Extract user info from video title (format: "DisplayName - timestamp")
         const titleParts = video.title.split(' - ')
         if (titleParts.length >= 2) {
