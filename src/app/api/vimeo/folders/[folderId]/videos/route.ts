@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { folderId: string } }
+  { params }: { params: Promise<{ folderId: string }> }
 ) {
   try {
-    const { folderId } = params
+    const { folderId } = await params
     console.log(`🎥 Fetching videos from folder ID: ${folderId}`)
     
     const response = await fetch(`https://api.vimeo.com/me/projects/${folderId}/videos?per_page=100`, {
