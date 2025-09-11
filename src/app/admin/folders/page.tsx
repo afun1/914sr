@@ -6,9 +6,9 @@ import { supabase } from '@/lib/supabase'
 import { ThemeProvider } from '@/components/ThemeProvider'
 
 export default function AdminFoldersPage() {
-  const [folders, setFolders] = useState([])
+  const [folders, setFolders] = useState<any[]>([])
   const [selectedFolder, setSelectedFolder] = useState(null)
-  const [folderVideos, setFolderVideos] = useState([])
+  const [folderVideos, setFolderVideos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [videosLoading, setVideosLoading] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
@@ -17,8 +17,8 @@ export default function AdminFoldersPage() {
   // User search dropdown states
   const [showUserSearch, setShowUserSearch] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [suggestedUsers, setSuggestedUsers] = useState([])
-  const [allUsers, setAllUsers] = useState([])
+  const [suggestedUsers, setSuggestedUsers] = useState<any[]>([])
+  const [allUsers, setAllUsers] = useState<any[]>([])
   const [creatingFolder, setCreatingFolder] = useState(false)
 
   useEffect(() => {
