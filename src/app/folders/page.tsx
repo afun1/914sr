@@ -1,23 +1,56 @@
-'use client'
+[02:39:31.327] Running build in Washington, D.C., USA (East) – iad1
+[02:39:31.331] Build machine configuration: 2 cores, 8 GB
+[02:39:31.371] Cloning github.com/afun1/97sr (Branch: main, Commit: 5fa4637)
+[02:39:34.478] Cloning completed: 3.106s
+[02:39:35.114] Restored build cache from previous deployment (A4CmnYg7s6AG52E2sDdYgxc2anne)
+[02:39:36.043] Running "vercel build"
+[02:39:36.441] Vercel CLI 47.1.1
+[02:39:36.795] Running "install" command: `npm install`...
+[02:39:38.234] 
+[02:39:38.235] added 1 package, and audited 362 packages in 1s
+[02:39:38.236] 
+[02:39:38.236] 140 packages are looking for funding
+[02:39:38.236]   run `npm fund` for details
+[02:39:38.237] 
+[02:39:38.238] found 0 vulnerabilities
+[02:39:38.268] Detected Next.js version: 15.5.2
+[02:39:38.269] Running "npm run build"
+[02:39:38.384] 
+[02:39:38.385] > sparky-screen-recorder@1.0.0 build
+[02:39:38.385] > next build --turbopack
+[02:39:38.385] 
+[02:39:39.170]    ▲ Next.js 15.5.2 (Turbopack)
+[02:39:39.171] 
+[02:39:39.413]    Creating an optimized production build ...
+[02:39:54.866]  ✓ Finished writing to disk in 50ms
+[02:39:54.915]  ✓ Compiled successfully in 15.0s
+[02:39:54.928]    Skipping linting
+[02:39:54.929]    Checking validity of types ...
+[02:40:04.240] Failed to compile.
+[02:40:04.240] 
+[02:40:04.242] Type error: File '/vercel/path0/src/app/api/assignments/route.ts' is not a module.
+[02:40:04.242] 
+[02:40:04.267] Next.js build worker exited with code: 1 and signal: null
+[02:40:04.288] Error: Command "npm run build" exited with 1'use client'
 
 import { useState, useEffect } from 'react'
 import GlobalHeader from '@/components/GlobalHeader'
 import { supabase } from '@/lib/supabase'
 
 export default function FoldersPage() {
-  const [folders, setFolders] = useState([])
-  const [selectedFolder, setSelectedFolder] = useState(null)
-  const [folderVideos, setFolderVideos] = useState([])
+  const [folders, setFolders] = useState<any[]>([])
+  const [selectedFolder, setSelectedFolder] = useState<any>(null)
+  const [folderVideos, setFolderVideos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [videosLoading, setVideosLoading] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [error, setError] = useState('')
   
   // User search dropdown states
   const [showUserSearch, setShowUserSearch] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [suggestedUsers, setSuggestedUsers] = useState([])
-  const [allUsers, setAllUsers] = useState([])
+  const [suggestedUsers, setSuggestedUsers] = useState<any[]>([])
+  const [allUsers, setAllUsers] = useState<any[]>([])
   const [creatingFolder, setCreatingFolder] = useState(false)
 
   useEffect(() => {
