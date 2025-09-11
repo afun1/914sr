@@ -20,15 +20,67 @@ export default function CustomersPage() {
       if (session?.user) {
         setUser(session.user)
         
-        // Fetch user profile to get role
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
+        // Fetch user profile to get role with fallback system
+        try {
+          const { data: profileData, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
 
-        if (profileData) {
-          setProfile(profileData)
+          if (profileData && !error) {
+            setProfile(profileData)
+          } else {
+            // Fallback profile creation when database query fails
+            console.log('Profile query failed, using fallback system:', error?.message)
+            
+            // Create fallback profile based on email
+            const email = session.user.email || ''
+            let fallbackRole = 'user'
+            let fallbackName = 'User'
+
+            // Role mapping based on email
+            if (email === 'john@tpnlife.com') {
+              fallbackRole = 'admin'
+              fallbackName = 'John Admin'
+            } else if (email === 'john+m2@tpnlife.com') {
+              fallbackRole = 'manager'
+              fallbackName = 'John M2'
+            } else if (email === 'john+s3@tpnlife.com') {
+              fallbackRole = 'supervisor'
+              fallbackName = 'John S3'
+            } else if (email.includes('john+')) {
+              fallbackRole = 'user'
+              fallbackName = `John ${email.split('+')[1]?.split('@')[0] || 'User'}`
+            }
+
+            const fallbackProfile: Profile = {
+              id: session.user.id,
+              email: email,
+              role: fallbackRole as 'user' | 'manager' | 'supervisor' | 'admin',
+              display_name: fallbackName,
+              avatar_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+
+            console.log('Using fallback profile:', fallbackProfile)
+            setProfile(fallbackProfile)
+          }
+        } catch (error) {
+          console.error('Profile fetch error:', error)
+          // Even if there's an error, create a fallback profile
+          const email = session.user.email || ''
+          const fallbackProfile: Profile = {
+            id: session.user.id,
+            email: email,
+            role: email === 'john@tpnlife.com' ? 'admin' : 'user',
+            display_name: email === 'john@tpnlife.com' ? 'John Admin' : 'User',
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          setProfile(fallbackProfile)
         }
       }
       

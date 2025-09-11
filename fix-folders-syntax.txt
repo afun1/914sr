@@ -1,0 +1,10 @@
+// Clean version to fix the syntax error
+// Replace the problematic section with this:
+
+        )}
+      </div>
+    </ThemeProvider>
+  )
+}
+
+// That's it - just clean closing tags without the problematic comment

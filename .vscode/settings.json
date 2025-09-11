@@ -1,0 +1,5 @@
+{
+    "accessibility.verbosity.comments": false,
+    "editor.aiStats.enabled": true,
+    "chat.agentSessionsViewLocation": "view"
+}

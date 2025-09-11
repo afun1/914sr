@@ -147,25 +147,50 @@ export async function POST(request: NextRequest) {
             description
           })
 
-          // Step 1: Create or get liaison-specific folder inside Sparky Screen Recordings
-          // Note: We organize by liaison (userDisplayName) not customer, since customers may work with multiple liaisons
-          console.log('Creating/getting liaison folder for:', userDisplayName)
-          const userFolder = await vimeo.createUserSpecificFolder(userDisplayName, customerEmail)
-          console.log('Liaison folder created/found:', userFolder.name, userFolder.uri)
+          // Hybrid folder strategy:
+          // 1. Try to find existing user folder
+          // 2. If not found, create user folder for this liaison
+          // 3. If creation fails, fallback to main Sparky folder
+          console.log('🔍 Looking for existing folder for:', userDisplayName)
           
-          // Use the full folder URI for project subfolders
-          const folderUri = userFolder.uri
-          console.log('Using folder URI for upload:', folderUri)
+          let targetFolderUri = '/folders/26555277' // Default to main Sparky folder
+          let targetFolderName = 'Sparky Screen Recordings'
           
-          // Step 2: Create upload ticket WITH folder assignment
+          try {
+            // Try to create or find user-specific folder
+            const userFolder = await vimeo.createUserSpecificFolder(userDisplayName, customerEmail)
+            if (userFolder && userFolder.uri) {
+              targetFolderUri = userFolder.uri
+              targetFolderName = userFolder.name
+              console.log('✅ Using user folder:', targetFolderName)
+            } else {
+              console.log('⚠️ User folder creation returned invalid result, using main folder')
+            }
+          } catch (error) {
+            console.log('⚠️ User folder creation failed, using main Sparky folder:', error)
+            // targetFolderUri already set to main folder
+          }
+          
+          console.log('📁 Final folder assignment:', { targetFolderUri, targetFolderName })
+          
+          // Create upload ticket with determined folder
           console.log('Creating upload ticket with folder assignment...')
           const uploadTicket = await vimeo.createUploadTicket(
             userFileSize,
             userFileName,
-            folderUri, // Pass the full URI instead of just the ID
+            targetFolderUri,
             {
-              title: title || `[${userDisplayName}] ${customerName} - Screen Recording`,
-              description: `Customer: ${customerName}\nEmail: ${customerEmail}\nRecorded by: ${userDisplayName}\n\n${description || 'Screen recording session'}`,
+              title: `[${userDisplayName}] ${customerName} - Screen Recording`,
+              description: `SPARKY SCREEN RECORDING
+═══════════════════════════════════
+👤 Customer: ${customerName}
+📧 Email: ${customerEmail}
+🎥 Recorded by: ${userDisplayName}
+📅 Date: ${new Date().toLocaleDateString()}
+
+${description ? `📝 Notes: ${description}` : ''}
+
+🏷️ Tags: sparky-recording, ${userDisplayName.toLowerCase().replace(/\s+/g, '-')}, customer-${customerName.toLowerCase().replace(/\s+/g, '-')}`,
               customerName,
               customerEmail
             }
@@ -175,8 +200,8 @@ export async function POST(request: NextRequest) {
           
           return NextResponse.json({
             ...uploadTicket,
-            folderUri: userFolder.uri,
-            folderName: userFolder.name
+            folderUri: targetFolderUri,
+            folderName: targetFolderName
           })
         } catch (error) {
           console.error('Error in upload-ticket-user:', error)

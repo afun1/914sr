@@ -28,6 +28,8 @@ export interface VimeoVideo {
   link: string
 }
 
+import { VimeoFolderManager } from '../../vimeo-folder-manager/dist/VimeoFolderManager'
+
 export interface VimeoFolder {
   uri: string
   name: string
@@ -55,12 +57,31 @@ export interface VimeoUploadResponse {
 export class VimeoService {
   private baseUrl = 'https://api.vimeo.com'
   private accessToken: string
+  private folderManager: VimeoFolderManager
 
   constructor() {
     this.accessToken = process.env.VIMEO_ACCESS_TOKEN!
     if (!this.accessToken) {
       throw new Error('VIMEO_ACCESS_TOKEN environment variable is required')
     }
+    
+    // Initialize the advanced folder manager
+    this.folderManager = new VimeoFolderManager({
+      accessToken: this.accessToken,
+      parentFolderId: '26555277',
+      parentFolderName: 'Sparky Screen Recordings',
+      organizationPattern: 'enhanced-flat',
+      namingConvention: {
+        prefix: '📁 SSR',
+        separator: ' • ',
+        useEmoji: true
+      },
+      fallbackStrategies: ['virtual-path', 'nested'],
+      retryOptions: {
+        maxRetries: 3,
+        retryDelay: 1000
+      }
+    })
   }
 
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
@@ -185,120 +206,35 @@ export class VimeoService {
     })
   }
 
-  // Creates a folder for a specific liaison using intelligent strategies
+  // Creates a folder for a specific liaison using the advanced folder manager library
   async createUserSpecificFolder(userDisplayName: string, userEmail: string): Promise<VimeoFolder> {
-    console.log('🔍 createUserSpecificFolder called with:', { userDisplayName, userEmail })
+    console.log('� Using VimeoFolderManager for:', userDisplayName)
+    console.log('🔧 Email:', userEmail)
+    console.log('🔧 FolderManager initialized:', !!this.folderManager)
     
     try {
-      console.log('Creating/finding liaison folder:', userDisplayName)
+      const result = await this.folderManager.createOrganizedFolder(
+        '26555277', // SSR parent folder
+        userDisplayName
+      )
       
-      // Strategy 1: Try to find existing folder with multiple naming patterns
-      const existingFolder = await this.findExistingLiaisonFolder(userDisplayName)
-      if (existingFolder) {
-        console.log('✅ Found existing liaison folder:', existingFolder.name, existingFolder.uri)
-        return existingFolder
-      }
-
-      // Strategy 2: Create new folder with intelligent approach
-      console.log('🔨 Creating new liaison folder with intelligent strategy:', userDisplayName)
-      return await this.createLiaisonFolderIntelligently(userDisplayName)
-
-    } catch (outerError) {
-      console.error('❌ Error in createUserSpecificFolder:', outerError instanceof Error ? outerError.message : outerError)
-      throw outerError
-    }
-  }
-
-  private async findExistingLiaisonFolder(userDisplayName: string): Promise<VimeoFolder | null> {
-    try {
-      const rootFolders = await this.makeRequest('/me/folders')
-      console.log('🔍 Searching in', rootFolders.data?.length || 0, 'root folders')
+      console.log(`✅ Folder organized with strategy: ${result.strategy}`)
+      console.log(`📁 Folder name: ${result.folder.name}`)
+      console.log(`📁 Was existing: ${result.wasExisting}`)
+      console.log(`📁 Folder URI: ${result.folder.uri}`)
       
-      // Try multiple naming patterns
-      const namingPatterns = [
-        `SSR - ${userDisplayName}`,           // Current pattern
-        `📁 SSR • ${userDisplayName}`,       // Enhanced pattern
-        `Sparky Screen Recordings/${userDisplayName}`, // Virtual path pattern
-        userDisplayName,                      // Original pattern
-        `SSR-${userDisplayName}`,            // Alternative pattern
-      ]
-      
-      for (const pattern of namingPatterns) {
-        const folder = rootFolders.data?.find((f: any) => f.name === pattern)
-        if (folder) {
-          console.log('✅ Found folder with pattern:', pattern)
-          return {
-            uri: folder.uri,
-            name: folder.name,
-            created_time: folder.created_time,
-            modified_time: folder.modified_time,
-            resource_key: folder.resource_key
-          }
-        }
+      return {
+        uri: result.folder.uri,
+        name: result.folder.name,
+        created_time: result.folder.created_time,
+        modified_time: result.folder.modified_time,
+        resource_key: result.folder.resource_key
       }
       
-      console.log('❌ No existing folder found for:', userDisplayName)
-      return null
     } catch (error) {
-      console.log('Could not search for existing folders:', error instanceof Error ? error.message : error)
-      return null
+      console.error('❌ VimeoFolderManager failed:', error)
+      throw error
     }
-  }
-
-  private async createLiaisonFolderIntelligently(userDisplayName: string): Promise<VimeoFolder> {
-    // Try multiple creation strategies in order of preference
-    
-    // Strategy 1: Enhanced flat structure with emoji for visual grouping
-    try {
-      const enhancedName = `📁 SSR • ${userDisplayName}`
-      console.log('🧪 Trying enhanced flat structure:', enhancedName)
-      
-      const newFolder = await this.makeRequest('/me/folders', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: enhancedName,
-          description: `Screen recordings for ${userDisplayName} • Auto-organized by Sparky`
-        })
-      })
-      
-      console.log('✅ Successfully created enhanced folder:', newFolder.name)
-      return newFolder
-    } catch (enhancedError) {
-      console.log('Enhanced strategy failed:', enhancedError instanceof Error ? enhancedError.message : enhancedError)
-    }
-
-    // Strategy 2: Fallback to simple naming
-    try {
-      const simpleName = `SSR - ${userDisplayName}`
-      console.log('🧪 Trying simple naming strategy:', simpleName)
-      
-      const newFolder = await this.makeRequest('/me/folders', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: simpleName,
-          description: `Screen recordings for ${userDisplayName}`
-        })
-      })
-      
-      console.log('✅ Successfully created simple folder:', newFolder.name)
-      return newFolder
-    } catch (simpleError) {
-      console.log('Simple strategy failed:', simpleError instanceof Error ? simpleError.message : simpleError)
-    }
-
-    // Strategy 3: Last resort - basic folder
-    const basicName = userDisplayName
-    console.log('🧪 Trying basic naming strategy:', basicName)
-    
-    const newFolder = await this.makeRequest('/me/folders', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: basicName
-      })
-    })
-    
-    console.log('✅ Successfully created basic folder:', newFolder.name)
-    return newFolder
   }
 
   async moveVideoToFolder(videoUri: string, folderUri: string): Promise<void> {

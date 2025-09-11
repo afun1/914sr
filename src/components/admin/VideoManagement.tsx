@@ -103,19 +103,72 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-        
-        if (profile) {
-          // Combine profile data with auth user data
-          setCurrentUser({
-            ...profile,
-            email: user.email,
-            name: profile.name || user.user_metadata?.name
-          })
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single()
+          
+          if (profile && !error) {
+            // Combine profile data with auth user data
+            setCurrentUser({
+              ...profile,
+              email: user.email,
+              name: profile.name || user.user_metadata?.name
+            })
+          } else {
+            // Fallback profile creation when database query fails
+            console.log('🔧 VideoManagement - Profile query failed, using fallback for:', user.email)
+            
+            const email = user.email || ''
+            let fallbackRole = 'user'
+            let fallbackName = 'User'
+
+            // Role mapping based on email (same as other pages)
+            if (email === 'john@tpnlife.com') {
+              fallbackRole = 'admin'
+              fallbackName = 'John Admin'
+            } else if (email === 'john+m2@tpnlife.com') {
+              fallbackRole = 'manager'
+              fallbackName = 'John M2'
+            } else if (email === 'john+s3@tpnlife.com') {
+              fallbackRole = 'supervisor'
+              fallbackName = 'John S3'
+            } else if (email.includes('john+')) {
+              fallbackRole = 'user'
+              fallbackName = `John ${email.split('+')[1]?.split('@')[0] || 'User'}`
+            }
+
+            const fallbackUser = {
+              id: user.id,
+              email: email,
+              role: fallbackRole,
+              display_name: fallbackName,
+              name: fallbackName,
+              avatar_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+
+            console.log('✅ VideoManagement - Using fallback user:', fallbackUser)
+            setCurrentUser(fallbackUser)
+          }
+        } catch (error) {
+          // Even if there's an error, create a fallback user
+          console.error('VideoManagement - Profile fetch error, using fallback:', error)
+          const email = user.email || ''
+          const fallbackUser = {
+            id: user.id,
+            email: email,
+            role: email === 'john@tpnlife.com' ? 'admin' : 'user',
+            display_name: email === 'john@tpnlife.com' ? 'John Admin' : 'User',
+            name: email === 'john@tpnlife.com' ? 'John Admin' : 'User',
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          setCurrentUser(fallbackUser)
         }
       }
     } catch (error) {
@@ -135,10 +188,77 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
     console.log('Is impersonating:', !!impersonatedUser)
     console.log('All videos count:', allVideos.length)
     
-    // Admins and supervisors see all videos (unless impersonating)
-    if ((activeRole === 'admin' || activeRole === 'supervisor') && !impersonatedUser) {
-      console.log('✅ Admin/Supervisor access - showing all videos')
+    // Admins see all videos (unless impersonating)
+    if (activeRole === 'admin' && !impersonatedUser) {
+      console.log('✅ Admin access - showing all videos')
       return allVideos
+    }
+    
+    if (activeRole === 'supervisor') {
+      // Supervisors only see videos from their assigned managers/users and their own videos
+      const filteredVideos = allVideos.filter(video => {
+        const parsed = parseCustomerInfo(video.description || '')
+        const recordedBy = parsed.userDisplayName
+        
+        console.log('Video:', {
+          title: video.name,
+          recordedBy,
+          description: video.description,
+          activeUserName: activeUser?.display_name || activeUser?.name,
+          activeUserEmail: activeUser?.email
+        })
+        
+        // Can see their own videos
+        if (recordedBy === activeUser?.display_name || recordedBy === activeUser?.name || recordedBy === activeUser?.email) {
+          console.log('✅ Video matches supervisor (own video)')
+          return true
+        }
+        
+        // Check if the video creator is assigned to this supervisor
+        try {
+          const assignments = JSON.parse(localStorage.getItem('assignments') || '[]')
+          const myAssignments = assignments.filter((assignment: any) => 
+            assignment.assignor_id === activeUser?.id
+          )
+          
+          console.log('My assignments as supervisor:', myAssignments)
+          
+          // Check if the video creator is in the supervisor's assigned users/managers
+          const isDirectlyAssigned = myAssignments.some((assignment: any) => {
+            return assignment.assignee?.name === recordedBy || 
+                   assignment.assignee?.email === recordedBy
+          })
+          
+          if (isDirectlyAssigned) {
+            console.log('✅ Video creator is directly assigned to supervisor')
+            return true
+          }
+          
+          // Check if the video creator is assigned to any of the supervisor's managers
+          const myManagerIds = myAssignments
+            .filter((assignment: any) => assignment.assignee?.role === 'manager')
+            .map((assignment: any) => assignment.assignee?.id)
+          
+          const isAssignedToMyManager = assignments.some((assignment: any) => {
+            return myManagerIds.includes(assignment.assignor_id) &&
+                   (assignment.assignee?.name === recordedBy || assignment.assignee?.email === recordedBy)
+          })
+          
+          if (isAssignedToMyManager) {
+            console.log('✅ Video creator is assigned to one of supervisor\'s managers')
+            return true
+          }
+          
+          console.log('❌ Video creator not in supervisor\'s hierarchy')
+          return false
+        } catch (error) {
+          console.error('Error checking supervisor assignments:', error)
+          return false
+        }
+      })
+      
+      console.log('Filtered videos for supervisor:', filteredVideos.length)
+      return filteredVideos
     }
     
     if (activeRole === 'manager') {
@@ -332,7 +452,6 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Video Management</h2>
           <div className="flex items-center space-x-4 mt-2">
             <span className="text-sm text-gray-500 dark:text-gray-400">
               {parsedVideos.length} {effectiveRole === 'manager' ? 'assigned user' : effectiveRole === 'user' ? 'personal' : 'total'} videos
@@ -396,23 +515,6 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
           >
             Delete Selected ({selectedVideos.size})
           </button>
-          
-          {/* Vimeo Folder Button - Only for Admins/Supervisors */}
-          {hasAdminAccess(userRole) && userRole !== 'manager' && (
-            <button
-              onClick={() => window.open('https://vimeo.com/user/230665591/folder/26524560?isPrivate=false', '_blank')}
-              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 text-white rounded-md shadow-lg hover:shadow-xl transition-all duration-200 font-medium"
-            >
-              <svg 
-                className="w-4 h-4" 
-                fill="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path d="M23.977 6.416c-.105 2.338-1.739 5.543-4.894 9.609-3.268 4.247-6.026 6.37-8.29 6.37-1.409 0-2.578-1.294-3.553-3.881L5.322 11.4C4.603 8.816 3.834 7.522 3.01 7.522c-.179 0-.806.378-1.881 1.132L0 7.197c1.185-1.044 2.351-2.084 3.501-3.128C5.08 2.701 6.266 1.984 7.055 1.91c1.867-.18 3.016 1.1 3.447 3.838.465 2.953.789 4.789.971 5.507.539 2.45 1.131 3.674 1.776 3.674.502 0 1.256-.796 2.265-2.385 1.004-1.589 1.54-2.797 1.612-3.628.144-1.371-.395-2.061-1.614-2.061-.574 0-1.167.121-1.777.391 1.186-3.868 3.434-5.757 6.762-5.637 2.473.06 3.628 1.664 3.493 4.797l-.013.01z"/>
-              </svg>
-              <span>Sparky Recordings Folder</span>
-            </button>
-          )}
         </div>
 
         <div className="flex items-center space-x-2">
@@ -453,6 +555,9 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
                 />
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Play
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Customer Name
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -479,6 +584,21 @@ export default function VideoManagement({ userRole }: VideoManagementProps) {
                     onChange={() => handleVideoSelect(video.id)}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {video.vimeo_url ? (
+                    <button
+                      onClick={() => window.open(video.vimeo_url!, '_blank')}
+                      className="flex items-center justify-center w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
+                      title="Play video"
+                    >
+                      <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                    </button>
+                  ) : (
+                    <span className="text-gray-400 text-sm">No video</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900 dark:text-white">

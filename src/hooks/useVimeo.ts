@@ -44,31 +44,156 @@ export interface UseVimeoReturn {
   createUserFolder: (userDisplayName: string, userEmail: string) => Promise<any>
 }
 
-export function useVimeo(): UseVimeoReturn {
+interface UseVimeoOptions {
+  mainFolderOnly?: boolean
+}
+
+export function useVimeo(options: UseVimeoOptions = {}): UseVimeoReturn {
+  const { mainFolderOnly = false } = options
   const [videos, setVideos] = useState<VimeoVideo[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
 
-  const fetchVideos = useCallback(async (page = 1, perPage = 25) => {
+  const fetchVideos = useCallback(async (page = 1, perPage = 100) => {
     setLoading(true)
     setError(null)
     
     try {
-      const response = await fetch(`/api/vimeo?action=list&page=${page}&perPage=${perPage}`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch videos')
+      // If mainFolderOnly is true, only get videos from the main Sparky Screen Recordings folder
+      if (mainFolderOnly) {
+        console.log('🎯 Main folder only mode: Loading videos from Sparky Screen Recordings folder only')
+        
+        const mainFolderResponse = await fetch(`/api/vimeo?action=get-folder-videos&folderId=26555277&page=${page}&perPage=${perPage}`)
+        
+        if (mainFolderResponse.ok) {
+          const mainData = await mainFolderResponse.json()
+          const mainVideos = mainData.data || []
+          console.log(`📊 Found ${mainVideos.length} videos in main Sparky folder`)
+          
+          // Remove duplicates based on URI
+          const uniqueVideos = mainVideos.filter((video: VimeoVideo, index: number, self: VimeoVideo[]) => 
+            index === self.findIndex(v => v.uri === video.uri)
+          )
+          
+          setVideos(uniqueVideos)
+          return
+        } else {
+          throw new Error('Failed to fetch videos from main folder')
+        }
       }
       
-      const data = await response.json()
-      setVideos(data.data || [])
+      // Original logic for admin/full access (when mainFolderOnly is false)
+      // Get current user role to determine folder access
+      const userResponse = await fetch('/api/user/profile')
+      let userRole = 'user' // default
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json()
+        userRole = userData.role || 'user'
+      }
+      
+      let allVideos: VimeoVideo[] = []
+      
+      // Admin users: Get videos from ALL folders (main + user folders)
+      if (userRole === 'admin') {
+        console.log('🔑 Admin access: Loading videos from all folders')
+        
+        // Step 1: Get videos from main Sparky Screen Recordings folder
+        console.log('📁 Fetching videos from main Sparky folder...')
+        const mainFolderResponse = await fetch(`/api/vimeo?action=get-folder-videos&folderId=26555277&page=${page}&perPage=${perPage}`)
+        
+        if (mainFolderResponse.ok) {
+          const mainData = await mainFolderResponse.json()
+          allVideos = [...(mainData.data || [])]
+          console.log(`📊 Found ${allVideos.length} videos in main folder`)
+        }
+        
+        // Step 2: Get videos from all user folders
+        console.log('📁 Fetching videos from user folders...')
+        const foldersResponse = await fetch('/api/vimeo?action=get-folders')
+        
+        if (foldersResponse.ok) {
+          const foldersData = await foldersResponse.json()
+          const folders = foldersData.data || []
+          
+          // Filter for user folders (exclude main Sparky folder)
+          const userFolders = folders.filter((folder: any) => 
+            folder.uri !== '/folders/26555277' && // Not main folder
+            !folder.name.toLowerCase().includes('sparky screen recordings') // Not main folder variations
+          )
+          
+          console.log(`📊 Found ${userFolders.length} user folders to check`)
+          
+          // Get videos from each user folder
+          for (const folder of userFolders) {
+            try {
+              const folderId = folder.uri.split('/').pop()
+              const userFolderResponse = await fetch(`/api/vimeo?action=get-folder-videos&folderId=${folderId}&page=1&perPage=50`)
+              
+              if (userFolderResponse.ok) {
+                const userData = await userFolderResponse.json()
+                const userVideos = userData.data || []
+                allVideos = [...allVideos, ...userVideos]
+                console.log(`📊 Added ${userVideos.length} videos from ${folder.name}`)
+              }
+            } catch (folderError) {
+              console.warn(`⚠️ Failed to get videos from folder ${folder.name}:`, folderError)
+            }
+          }
+        }
+      } else {
+        // Non-admin users: Only get videos from user folders, NOT main Sparky folder
+        console.log('👤 Non-admin access: Loading videos from user folders only')
+        
+        const foldersResponse = await fetch('/api/vimeo?action=get-folders')
+        
+        if (foldersResponse.ok) {
+          const foldersData = await foldersResponse.json()
+          const folders = foldersData.data || []
+          
+          // Only get user folders (exclude main Sparky folder)
+          const userFolders = folders.filter((folder: any) => 
+            folder.uri !== '/folders/26555277' && // Exclude main folder
+            !folder.name.toLowerCase().includes('sparky screen recordings') // Exclude main folder variations
+          )
+          
+          console.log(`📊 Found ${userFolders.length} user folders for non-admin access`)
+          
+          // Get videos from each user folder
+          for (const folder of userFolders) {
+            try {
+              const folderId = folder.uri.split('/').pop()
+              const userFolderResponse = await fetch(`/api/vimeo?action=get-folder-videos&folderId=${folderId}&page=1&perPage=50`)
+              
+              if (userFolderResponse.ok) {
+                const userData = await userFolderResponse.json()
+                const userVideos = userData.data || []
+                allVideos = [...allVideos, ...userVideos]
+                console.log(`📊 Added ${userVideos.length} videos from ${folder.name}`)
+              }
+            } catch (folderError) {
+              console.warn(`⚠️ Failed to get videos from folder ${folder.name}:`, folderError)
+            }
+          }
+        }
+      }
+      
+      // Remove duplicates (in case a video appears in multiple places)
+      const uniqueVideos = allVideos.filter((video, index, self) => 
+        index === self.findIndex(v => v.uri === video.uri)
+      )
+      
+      console.log(`✅ Total unique videos loaded: ${uniqueVideos.length} (Role: ${userRole})`)
+      setVideos(uniqueVideos)
+      
     } catch (err) {
+      console.error('❌ Error fetching videos:', err)
       setError(err instanceof Error ? err.message : 'Unknown error occurred')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [mainFolderOnly])
 
   const uploadVideo = useCallback(async (file: File, onProgress?: (progress: number) => void): Promise<string> => {
     setLoading(true)
@@ -251,12 +376,19 @@ export function useVimeo(): UseVimeoReturn {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               // Complete the upload
-              await fetch(ticket.upload.complete_uri, {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': `Bearer ${process.env.NEXT_PUBLIC_VIMEO_ACCESS_TOKEN}`
-                }
-              })
+              console.log('🔍 Complete URI debug:', ticket.upload.complete_uri)
+              console.log('🔍 Upload ticket debug:', ticket.upload)
+              
+              if (ticket.upload.complete_uri) {
+                await fetch(ticket.upload.complete_uri, {
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${process.env.NEXT_PUBLIC_VIMEO_ACCESS_TOKEN}`
+                  }
+                })
+              } else {
+                console.warn('⚠️ No complete_uri found in upload ticket')
+              }
 
               const videoId = ticket.uri.split('/').pop()
               resolve(videoId)

@@ -25,7 +25,7 @@ interface ParsedVideoInfo {
 }
 
 export default function UserVideos() {
-  const { videos, loading, fetchVideos } = useVimeo()
+  const { videos, loading, fetchVideos } = useVimeo({ mainFolderOnly: true })
   const { user, profile } = useUser()
   const [parsedVideos, setParsedVideos] = useState<ParsedVideoInfo[]>([])
   const [selectedDescription, setSelectedDescription] = useState<string | null>(null)
@@ -151,49 +151,17 @@ export default function UserVideos() {
 
   // Filter videos based on role hierarchy
   const filterVideosByRole = (videos: ParsedVideoInfo[]): ParsedVideoInfo[] => {
-    const viewableRoles = getViewableRoles(userRole)
     const currentUserDisplayName = getDisplayName()
     
+    // For the "Your Recordings" section, ALWAYS show only the current user's recordings
+    // regardless of their role (admin, supervisor, manager, or user)
     const filtered = videos.filter(video => {
       const recordedBy = video.recorded_by || ''
-      
-      // Admin can see everything
-      if (userRole === 'admin') {
-        return true
-      }
-      
-      // Users can ONLY see their own content
-      if (userRole === 'user') {
-        return recordedBy === currentUserDisplayName
-      }
-      
-      // Managers can see their own content + content from users assigned to them
-      if (userRole === 'manager') {
-        // Always show current user's own content
-        if (recordedBy === currentUserDisplayName) {
-          return true
-        }
-        
-        // Since there are no actual user assignments in this system yet,
-        // managers can only see their own content
-        return false
-      }
-      
-      // Supervisors can see their own content + content from managers and users
-      if (userRole === 'supervisor') {
-        // Always show current user's own content
-        if (recordedBy === currentUserDisplayName) {
-          return true
-        }
-        
-        // Show content from managers and users (not other supervisors/admins)
-        const isFromManagerOrUser = !recordedBy.includes('Supervisor') && 
-                                   recordedBy !== 'John Bradshaw' // Admin account
-        return isFromManagerOrUser
-      }
-      
-      return false
+      return recordedBy === currentUserDisplayName
     })
+    
+    console.log(`🎯 Filtering videos for user: "${currentUserDisplayName}"`)
+    console.log(`📊 Found ${filtered.length} videos recorded by this user out of ${videos.length} total videos`)
     
     return filtered
   }

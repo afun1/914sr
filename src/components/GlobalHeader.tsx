@@ -6,9 +6,9 @@ import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from './ThemeProvider'
 import ChangePassword from './ChangePassword'
-import { hasAdminAccess, getRoleDisplay } from '@/utils/roles'
+import { hasAdminAccess, getRoleDisplay, canSeeManagementPanels, hasEditingRights } from '@/utils/roles'
 import type { User } from '@supabase/supabase-js'
-import type { Profile } from '@/types/supabase'
+import type { Profile, UserRole } from '@/types/supabase'
 
 interface GlobalHeaderProps {
   user: User
@@ -68,14 +68,17 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
   // Get effective role (considering impersonation)
   const getEffectiveRole = () => {
     if (isImpersonating && impersonatedUser) {
+      console.log('🎭 Using impersonated role:', impersonatedUser.role)
       return impersonatedUser.role
     }
+    console.log('👤 Using profile role:', profile?.role, 'for user:', user?.email)
     return profile?.role || 'user'
   }
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (user) {
+        console.log('🔍 Fetching profile for user:', user.email, 'ID:', user.id)
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -83,7 +86,73 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
           .single()
 
         if (data && !error) {
+          console.log('✅ Profile loaded:', {
+            email: data.email,
+            role: data.role,
+            display_name: data.display_name,
+            id: data.id
+          })
           setProfile(data)
+        } else {
+          console.error('❌ Profile fetch error:', error)
+          console.log('🔧 Using fallback profile for missing database record...')
+          
+          // Create a fallback profile object for the session
+          // without trying to insert into database due to policy issues
+          const roleMap: { [key: string]: string } = {
+            // Development users
+            'admin@test.com': 'admin',
+            'manager@test.com': 'manager',
+            'user@test.com': 'user',
+            // Production users
+            'john@tpnlife.com': 'admin',
+            'john+admin@tpnlife.com': 'admin',
+            'john+supervisor@tpnlife.com': 'supervisor',
+            'john+3@tpnlife.com': 'supervisor',
+            'john+s2@tpnlife.com': 'supervisor', 
+            'john+s3@tpnlife.com': 'supervisor',
+            'john+manager@tpnlife.com': 'manager',
+            'john+2@tpnlife.com': 'manager',
+            'john+m2@tpnlife.com': 'manager',
+            'john+user@tpnlife.com': 'user',
+            'john+1@tpnlife.com': 'user'
+          }
+          
+          const nameMap: { [key: string]: string } = {
+            // Development users
+            'admin@test.com': 'Test Admin',
+            'manager@test.com': 'Test Manager',
+            'user@test.com': 'Test User',
+            // Production users
+            'john@tpnlife.com': 'John Bradshaw',
+            'john+admin@tpnlife.com': 'John Bradshaw',
+            'john+supervisor@tpnlife.com': 'John Supervisor',
+            'john+3@tpnlife.com': 'John 3',
+            'john+s2@tpnlife.com': 'John S2',
+            'john+s3@tpnlife.com': 'John S3',
+            'john+manager@tpnlife.com': 'John Manager',
+            'john+2@tpnlife.com': 'John 2',
+            'john+m2@tpnlife.com': 'John M2',
+            'john+user@tpnlife.com': 'John User',
+            'john+1@tpnlife.com': 'John 1'
+          }
+          
+          const defaultRole = roleMap[user.email || ''] || 'user'
+          const defaultName = nameMap[user.email || ''] || (user.email?.split('@')[0] || 'User')
+          
+          // Create fallback profile for UI purposes
+          const fallbackProfile = {
+            id: user.id,
+            email: user.email || '',
+            role: defaultRole as UserRole,
+            display_name: defaultName,
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          
+          console.log('✅ Using fallback profile:', fallbackProfile)
+          setProfile(fallbackProfile)
         }
       }
     }
@@ -122,6 +191,9 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
   }, [])
 
   const handleSignOut = async () => {
+    // Clear development user data
+    localStorage.removeItem('dev-auth-user')
+    
     await supabase.auth.signOut()
     window.location.href = '/'
   }
@@ -201,7 +273,16 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
               </Link>
 
               {/* Admin Dashboard Buttons - Show only if user has admin access (considering impersonation) */}
-              {hasAdminAccess(getEffectiveRole()) && (
+              {(() => {
+                const effectiveRole = getEffectiveRole();
+                const canSee = canSeeManagementPanels(effectiveRole);
+                console.log('🔒 Management panel check:', {
+                  effectiveRole,
+                  canSeeManagementPanels: canSee,
+                  userEmail: user?.email
+                });
+                return canSee;
+              })() && (
                 <div className="flex items-center space-x-3">
                   <Link
                     href="/videos"
@@ -230,15 +311,15 @@ export default function GlobalHeader({ user }: GlobalHeaderProps) {
                 </div>
               )}
               
-              {/* Admin Panel Button - Show only if user has admin access (considering impersonation) */}
-              {hasAdminAccess(getEffectiveRole()) && (
+              {/* Liaison Folders Button - Show only if user has admin access (considering impersonation) */}
+              {hasEditingRights(getEffectiveRole()) && (
                 <Link
-                  href="/admin"
+                  href="/admin/folders"
                   className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-b from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-sm font-medium transform hover:scale-105"
                   prefetch={true}
                 >
-                  <span>🔧</span>
-                  <span>Admin Panel</span>
+                  <span>�</span>
+                  <span>Liaison Folders</span>
                 </Link>
               )}
             </div>

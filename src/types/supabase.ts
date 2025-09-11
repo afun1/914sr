@@ -8,6 +8,11 @@ export interface Profile {
   role: UserRole
   created_at: string
   updated_at: string
+  assigned_to_admin?: string | null
+  assigned_to_supervisor?: string | null
+  assigned_to_manager?: string | null
+  assigned_at?: string | null
+  assigned_by?: string | null
 }
 
 export interface User {

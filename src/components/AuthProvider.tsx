@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { devAuthBypass } from '@/lib/dev-auth'
 import type { User } from '@supabase/supabase-js'
 import GlobalHeader from './GlobalHeader'
 
@@ -10,6 +12,8 @@ interface AuthProviderProps {
 }
 
 export default function AuthProvider({ children }: AuthProviderProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isSignUp, setIsSignUp] = useState(false)
@@ -28,6 +32,18 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const getSession = async () => {
       try {
+        // Check for development mode user first
+        if (devAuthBypass.enabled) {
+          const storedDevUser = localStorage.getItem('dev-auth-user')
+          if (storedDevUser) {
+            const devUser = JSON.parse(storedDevUser)
+            console.log('🔧 AuthProvider - Restored dev user from localStorage:', devUser.email)
+            setUser(devUser)
+            setLoading(false)
+            return
+          }
+        }
+        
         // Add timeout to prevent hanging
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Supabase timeout')), 5000)
@@ -58,6 +74,12 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           if (event === 'SIGNED_IN') {
             setShowVerification(false)
             setVerificationEmail('')
+            
+            // Handle redirect after login
+            const redirectTo = searchParams?.get('redirect')
+            if (redirectTo) {
+              router.push(`/${redirectTo}`)
+            }
           }
         }
       )
@@ -120,17 +142,60 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     setAuthLoading(true)
     setError('')
 
+    // Check development mode first for reliable testing
+    if (devAuthBypass.enabled) {
+      const devUser = devAuthBypass.users.find(u => 
+        u.email === formData.email && u.password === formData.password
+      )
+      
+      if (devUser) {
+        // Create a mock user object for development
+        const mockUser = {
+          id: `dev-${devUser.role}`,
+          email: devUser.email,
+          user_metadata: { full_name: devUser.name },
+          app_metadata: {},
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as User
+        
+        // Store dev user in localStorage for other components to access
+        localStorage.setItem('dev-auth-user', JSON.stringify(mockUser))
+        
+        setUser(mockUser)
+        setAuthLoading(false)
+        
+        // Handle redirect after login
+        const redirectTo = searchParams?.get('redirect')
+        if (redirectTo) {
+          router.push(`/${redirectTo}`)
+        }
+        return
+      }
+    }
+
     try {
+      // Try real Supabase authentication as fallback
       const { error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       })
 
       if (error) {
-        setError(error.message)
+        // Show a helpful message if Supabase fails
+        if (devAuthBypass.enabled) {
+          setError('Supabase authentication failed. Please use development credentials: admin@test.com / Admin123!')
+        } else {
+          setError(error.message)
+        }
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      if (devAuthBypass.enabled) {
+        setError('Network error. Please use development credentials: admin@test.com / Admin123!')
+      } else {
+        setError('An unexpected error occurred')
+      }
     } finally {
       setAuthLoading(false)
     }
@@ -335,6 +400,18 @@ export default function AuthProvider({ children }: AuthProviderProps) {
             <p className="text-gray-600 dark:text-gray-300">
               {isSignUp ? 'Create your account to start recording' : 'Sign in to start recording with lightning speed'}
             </p>
+            
+            {/* Development Mode Credentials */}
+            {devAuthBypass.enabled && !isSignUp && (
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">🔧 Development Mode - Use These Credentials:</p>
+                <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <div className="font-mono">admin@test.com / Admin123!</div>
+                  <div className="font-mono">manager@test.com / Manager123!</div>
+                  <div className="font-mono">user@test.com / User123!</div>
+                </div>
+              </div>
+            )}
           </div>
 
           <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-6">

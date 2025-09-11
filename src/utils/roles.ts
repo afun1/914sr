@@ -31,8 +31,28 @@ export const isAdmin = (role: UserRole): boolean => {
   return role === 'admin'
 }
 
-// Check if user can manage other users
+// Check if user can manage other users (assign/reassign)
 export const canManageUsers = (role: UserRole): boolean => {
+  return ['supervisor', 'admin'].includes(role)
+}
+
+// Check if user has editing rights (edit/delete)
+export const hasEditingRights = (role: UserRole): boolean => {
+  return role === 'admin'
+}
+
+// Check if user can see management panels
+export const canSeeManagementPanels = (role: UserRole): boolean => {
+  return ['manager', 'supervisor', 'admin'].includes(role)
+}
+
+// Check if user can only see their own work
+export const canOnlySeeOwnWork = (role: UserRole): boolean => {
+  return role === 'user'
+}
+
+// Check if user can assign users to managers (supervisors and admins)
+export const canAssignToManagers = (role: UserRole): boolean => {
   return ['supervisor', 'admin'].includes(role)
 }
 
