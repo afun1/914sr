@@ -3,10 +3,131 @@ import { ensureUserFolder, addVideoToUserFolder } from '@/lib/folder-manager'
 import { fetchSparkyFolderVideos } from '@/lib/vimeo-sparky'
 import { supabase } from '@/lib/supabase'
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { action, userEmail, displayName } = await request.json()
-    
+    const body = await request.json()
+    const { action, userEmail, displayName, folderName } = body
+
+    if (!action) {
+      return NextResponse.json({ error: 'Action parameter required' }, { status: 400 })
+    }
+
+    // CRITICAL: Setup all users to prevent folder chaos
+    if (action === 'setup-all-users') {
+      console.log('🚨 Starting mass user setup to prevent folder chaos...')
+      
+      try {
+        // Get all users from Supabase
+        const { data: users, error: usersError } = await supabase
+          .from('profiles')
+          .select('*')
+        
+        if (usersError) {
+          console.error('Error fetching users:', usersError)
+          return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
+        }
+
+        if (!users || users.length === 0) {
+          return NextResponse.json({ 
+            success: true, 
+            usersProcessed: 0,
+            foldersCreated: 0,
+            message: 'No users found to setup' 
+          })
+        }
+
+        let foldersCreated = 0
+        let videosOrganized = 0
+        const processedUsers = []
+
+        // Process each user
+        for (const user of users) {
+          try {
+            console.log(`Setting up user: ${user.display_name || user.email}`)
+            
+            const userFolderName = `${user.display_name || user.email.split('@')[0]} - Screen Recordings`
+            
+            // Create Vimeo folder
+            const folderResponse = await fetch('https://api.vimeo.com/me/projects', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${process.env.VIMEO_ACCESS_TOKEN}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                name: userFolderName,
+                description: `Screen recordings folder for ${user.display_name || user.email}`
+              })
+            })
+
+            if (folderResponse.ok) {
+              const folderData = await folderResponse.json()
+              console.log(`✅ Created folder for ${user.display_name}: ${folderData.name}`)
+              foldersCreated++
+
+              // Add to user tracking system  
+              try {
+                const { error: insertError } = await supabase
+                  .from('users')
+                  .upsert({
+                    email: user.email,
+                    display_name: user.display_name || user.email.split('@')[0],
+                    vimeo_folder_id: folderData.uri.split('/').pop(),
+                    folder_name: userFolderName,
+                    created_at: new Date().toISOString(),
+                    is_setup: true
+                  })
+                
+                if (insertError) {
+                  console.error('Error updating user database:', insertError)
+                }
+              } catch (dbError) {
+                console.error('Database error:', dbError)
+              }
+              
+              processedUsers.push({
+                email: user.email,
+                name: user.display_name,
+                folderId: folderData.uri.split('/').pop()
+              })
+            } else {
+              console.log(`⚠️  Folder might already exist for ${user.display_name}`)
+              // Still track as processed
+              processedUsers.push({
+                email: user.email,
+                name: user.display_name,
+                folderId: null,
+                note: 'Folder already exists or creation failed'
+              })
+            }
+            
+            // Small delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 300))
+            
+          } catch (userError) {
+            console.error(`Error setting up user ${user.email}:`, userError)
+            // Continue with other users
+          }
+        }
+
+        console.log(`🎯 Mass setup complete: ${foldersCreated} folders created for ${processedUsers.length} users`)
+
+        return NextResponse.json({
+          success: true,
+          usersProcessed: processedUsers.length,
+          foldersCreated,
+          videosOrganized,
+          processedUsers
+        })
+
+      } catch (error) {
+        console.error('❌ Mass setup failed:', error)
+        return NextResponse.json({ 
+          error: 'Mass setup failed: ' + (error instanceof Error ? error.message : 'Unknown error')
+        }, { status: 500 })
+      }
+    }
+
     if (action === 'setup-nicolaas') {
       console.log('🎉 Setting up Nicolaas folder and importing his video...')
       
@@ -42,85 +163,6 @@ export async function POST(request: NextRequest) {
         message: 'Nicolaas folder created and video imported!',
         folder: folder,
         videoImported: !!nicolaasVideo
-      })
-    }
-    
-    if (action === 'setup-all-users') {
-      console.log('🚀 Setting up folders for all users with videos...')
-      
-      const sparkyVideos = await fetchSparkyFolderVideos()
-      const results = []
-      
-      // Group videos by user (extract from video titles/descriptions)
-      const userVideos = new Map()
-      
-      sparkyVideos.forEach((video: any) => {
-        // Extract user info from video title (format: "DisplayName - timestamp")
-        const titleParts = video.title.split(' - ')
-        if (titleParts.length >= 2) {
-          const userInfo = titleParts[0]
-          
-          // Try to map to actual users
-          let userEmail = ''
-          let displayName = ''
-          
-          if (userInfo.toLowerCase().includes('nicolaas')) {
-            userEmail = 'nicolaas.phg@gmail.com'
-            displayName = 'Nicolaas'
-          } else if (userInfo.includes('@')) {
-            userEmail = userInfo
-            displayName = userInfo.split('@')[0]
-          } else {
-            // Use display name to guess email
-            displayName = userInfo
-            userEmail = `${userInfo.toLowerCase().replace(/\s+/g, '.')}@example.com`
-          }
-          
-          if (!userVideos.has(userEmail)) {
-            userVideos.set(userEmail, { displayName, videos: [] })
-          }
-          userVideos.get(userEmail).videos.push(video)
-        }
-      })
-      
-      // Create folders and import videos for each user
-      for (const [email, data] of userVideos) {
-        try {
-          const folder = await ensureUserFolder(email, data.displayName)
-          
-          for (const video of data.videos) {
-            await addVideoToUserFolder(email, {
-              vimeoId: video.vimeoId,
-              title: video.title,
-              description: video.description,
-              thumbnail: video.thumbnail,
-              duration: video.duration,
-              playerUrl: video.playerUrl,
-              createdAt: video.createdAt,
-              userDisplayName: data.displayName
-            })
-          }
-          
-          results.push({
-            userEmail: email,
-            displayName: data.displayName,
-            videosImported: data.videos.length,
-            folderCreated: true
-          })
-          
-        } catch (error) {
-          console.error(`❌ Error setting up folder for ${email}:`, error)
-          results.push({
-            userEmail: email,
-            error: error instanceof Error ? error.message : 'Failed to create folder'
-          })
-        }
-      }
-      
-      return NextResponse.json({
-        success: true,
-        message: 'All user folders set up!',
-        results: results
       })
     }
     

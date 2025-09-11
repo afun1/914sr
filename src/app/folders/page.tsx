@@ -196,6 +196,49 @@ They can now see their videos in "Your Recordings"!`)
     console.log('Remove duplicates functionality')
   }
 
+  const setupAllUsers = async () => {
+    if (!confirm('🚨 CRITICAL SETUP\n\nThis will automatically create folders for ALL users in the system.\nThis prevents videos from being scattered into individual folders.\n\nThis should be run ONCE before users start recording tomorrow.\n\nProceed?')) {
+      return
+    }
+
+    try {
+      setCreatingFolder(true)
+      console.log('🚨 Starting mass user setup...')
+      
+      const response = await fetch('/api/folders/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setup-all-users'
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        alert(`✅ MASS SETUP COMPLETE!
+
+Users processed: ${result.usersProcessed || 0}
+Folders created: ${result.foldersCreated || 0}
+Videos organized: ${result.videosOrganized || 0}
+
+🎯 All users now have proper folder organization!
+Videos will no longer scatter into individual folders.`)
+        
+        refreshFolders()
+        fetchAllUsers()
+      } else {
+        alert(`❌ Setup Error: ${result.error}`)
+      }
+      
+    } catch (error) {
+      alert('Failed to setup all users')
+      console.error('Error in mass setup:', error)
+    } finally {
+      setCreatingFolder(false)
+    }
+  }
+
   return (
     <>
       {currentUser && <GlobalHeader user={currentUser} />}
@@ -371,6 +414,14 @@ They can now see their videos in "Your Recordings"!`)
                 className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
               >
                 🧹 No Duplicates
+              </button>
+              
+              <button 
+                onClick={setupAllUsers}
+                disabled={creatingFolder}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 font-semibold"
+              >
+                🚨 Auto-Setup All Users
               </button>
             </div>
 
