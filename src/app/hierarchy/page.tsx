@@ -16,6 +16,7 @@ export default function HierarchyPage() {
   const [effectiveRole, setEffectiveRole] = useState<UserRole>('user')
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [hierarchy, setHierarchy] = useState<any[]>([])
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -108,7 +109,30 @@ export default function HierarchyPage() {
       }
     }
 
+    const fetchHierarchy = async () => {
+      try {
+        console.log('🔄 Starting to fetch hierarchy...')
+        
+        // You can replace this with your actual hierarchy API call
+        const response = await fetch('/api/hierarchy')
+        if (response.ok) {
+          const data = await response.json()
+          setHierarchy(data || [])
+          console.log('✅ Successfully fetched hierarchy:', data?.length || 0)
+        } else {
+          console.error('❌ Failed to fetch hierarchy')
+          setHierarchy([])
+        }
+      } catch (error) {
+        console.error('❌ Error fetching hierarchy:', error)
+        setHierarchy([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
     fetchUserRole()
+    fetchHierarchy()
     
     // Listen for storage changes (impersonation start/stop)
     const handleStorageChange = () => {

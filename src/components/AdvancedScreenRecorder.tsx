@@ -450,19 +450,13 @@ export default function AdvancedScreenRecorder({ userRole = 'user' }: AdvancedSc
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg px-[10px] py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="mb-4">
+          <div className="mb-6">
             <img 
               src="/Sparky AI.gif" 
               alt="Sparky AI Logo" 
-              className="w-20 h-20 mx-auto"
+              className="w-24 h-24 mx-auto"
             />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-            Sparky Screen Recorder
-          </h2>
-          <p className="text-gray-600 dark:text-gray-300">
-            Professional screen recording with lightning-fast performance
-          </p>
           <div className="mt-4">
             <button
               onClick={() => setShowInstructions(true)}
@@ -659,6 +653,20 @@ export default function AdvancedScreenRecorder({ userRole = 'user' }: AdvancedSc
             </div>
           )}
 
+          {/* Preview Window - Always Visible and Centered */}
+          {!isRecording && !recordedBlob && (
+            <div className="w-full max-w-2xl mb-6">
+              <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center">
+                <div className="text-center">
+                  <svg className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">Your recording will appear here</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Recording Controls */}
           {!isRecording && !recordedBlob && (
             <button
@@ -704,17 +712,6 @@ export default function AdvancedScreenRecorder({ userRole = 'user' }: AdvancedSc
                       <span>Pause</span>
                     </>
                   )}
-                </button>
-                
-                <button
-                  onClick={stopRecording}
-                  className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                  </svg>
-                  <span>Stop Recording</span>
                 </button>
               </div>
             </div>

@@ -8,52 +8,60 @@ export async function GET(
     const { folderId } = await params
     console.log(`🎥 Fetching videos from folder ID: ${folderId}`)
     
-    const response = await fetch(`https://api.vimeo.com/me/projects/${folderId}/videos?per_page=100`, {
+    const VIMEO_ACCESS_TOKEN = process.env.VIMEO_ACCESS_TOKEN
+    if (!VIMEO_ACCESS_TOKEN) {
+      throw new Error('Vimeo access token not configured')
+    }
+
+    // Fetch videos from the specific Vimeo folder
+    const vimeoResponse = await fetch(`https://api.vimeo.com/me/projects/${folderId}/videos?per_page=50`, {
       headers: {
-        'Authorization': `bearer ${process.env.VIMEO_ACCESS_TOKEN}`,
+        'Authorization': `Bearer ${VIMEO_ACCESS_TOKEN}`,
         'Accept': 'application/vnd.vimeo.*+json;version=3.4'
       }
     })
     
-    if (!response.ok) {
-      throw new Error(`Vimeo API error: ${response.status}`)
+    if (!vimeoResponse.ok) {
+      throw new Error(`Vimeo API error: ${vimeoResponse.status}`)
     }
     
-    const data = await response.json()
-    console.log(`✅ Found ${data.data.length} videos in folder`)
+    const videosData = await vimeoResponse.json()
+    console.log('🎬 Raw videos response from Vimeo:', { 
+      count: videosData.data?.length, 
+      firstVideoPreview: videosData.data?.[0] ? {
+        name: videosData.data[0].name,
+        description: videosData.data[0].description?.substring(0, 100) + '...',
+        hasDescription: !!videosData.data[0].description
+      } : null
+    })
     
-    // Transform video data for the frontend
-    const videos = data.data.map((video: any) => ({
-      id: video.uri.split('/').pop(),
+    // Transform videos data
+    const videos = videosData.data?.map((video: any) => ({
+      id: video.uri?.split('/').pop(),
       title: video.name,
-      description: video.description,
+      description: video.description, // Make sure description is included
+      thumbnail: video.pictures?.sizes?.find((size: any) => size.width >= 200)?.link,
       duration: video.duration,
       created_time: video.created_time,
-      modified_time: video.modified_time,
-      thumbnail: video.pictures?.sizes?.find((size: any) => size.width >= 640)?.link || 
-                video.pictures?.sizes?.[0]?.link,
-      embed_url: video.player_embed_url,
-      link: video.link,
-      uri: video.uri,
-      // Extract user info from title if available
-      user_info: extractUserFromTitle(video.name)
-    }))
+      link: video.link
+    })) || []
     
-    return NextResponse.json({
-      success: true,
-      videos: videos,
-      total: data.total,
-      folder_id: folderId
+    console.log('✅ Found', videos.length, 'videos in folder')
+    console.log('📋 Transformed first video:', videos[0] ? {
+      title: videos[0].title,
+      hasDescription: !!videos[0].description,
+      descriptionLength: videos[0].description?.length || 0
+    } : 'No videos')
+    
+    return NextResponse.json({ 
+      success: true, 
+      videos 
     })
     
   } catch (error) {
-    console.error('❌ Error fetching folder videos:', error)
+    console.error('Error fetching folder videos:', error)
     return NextResponse.json(
-      { 
-        success: false,
-        error: 'Failed to fetch folder videos',
-        videos: []
-      },
+      { success: false, error: 'Failed to fetch videos' },
       { status: 500 }
     )
   }

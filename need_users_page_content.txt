@@ -1,0 +1,13 @@
+// Could you please share the content of the users page file?
+// The file is located at: c:\sr97\src\app\users\page.tsx
+// I need to see the exact structure to remove the "Add Folder" button
+//
+// Looking for this button structure that needs to be removed:
+/*
+<button className="...">
+  <svg>...</svg>
+  Add Folder
+</button>
+*/
+
+// Once I can see the file content, I'll remove the Add Folder button immediately!

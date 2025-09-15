@@ -1,0 +1,210 @@
+import { NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
+
+export async function GET() {
+  try {
+    console.log('🎬 Starting Vimeo folders API call...')
+    
+    const VIMEO_ACCESS_TOKEN = process.env.VIMEO_ACCESS_TOKEN
+    console.log('🔑 Vimeo token available:', !!VIMEO_ACCESS_TOKEN)
+    
+    if (!VIMEO_ACCESS_TOKEN) {
+      console.log('❌ No Vimeo access token found')
+      return NextResponse.json(
+        { error: 'Vimeo access token not configured' },
+        { status: 500 }
+      )
+    }
+
+    console.log('📡 Making request to Vimeo API...')
+    const response = await fetch('https://api.vimeo.com/me/folders', {
+      headers: {
+        'Authorization': `bearer ${VIMEO_ACCESS_TOKEN}`,
+        'Accept': 'application/vnd.vimeo.*+json;version=3.4'
+      }
+    })
+
+    console.log('📡 Vimeo API response status:', response.status)
+
+    if (!response.ok) {
+      console.log('❌ Vimeo API error:', response.status, response.statusText)
+      const errorText = await response.text()
+      console.log('❌ Error details:', errorText)
+      throw new Error(`Vimeo API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('📊 Raw Vimeo folders count:', data.data?.length || 0)
+    
+    if (data.data?.length > 0) {
+      data.data.forEach((folder: any, index: number) => {
+        console.log(`📁 Folder ${index + 1}: "${folder.name}" (URI: ${folder.uri})`)
+      })
+    } else {
+      console.log('📁 No folders found in Vimeo response')
+    }
+
+    // Filter and process folders - keep Team Library and Sparky Screen Recordings
+    const appRelatedFolders: any[] = []
+    
+    for (const folder of (data.data || [])) {
+      console.log(`🎥 Checking folder: "${folder.name}"`)
+      
+      const folderName = folder.name || ''
+      
+      // Only include Team Library and Sparky Screen Recordings
+      const isAllowedFolder = (
+        /team.*library/i.test(folderName) ||
+        /sparky.*screen.*recording/i.test(folderName)
+      )
+      
+      if (!isAllowedFolder) {
+        console.log(`🚫 Excluding folder: "${folderName}"`)
+        continue
+      }
+      
+      console.log(`✅ Including folder: "${folderName}"`)
+      
+      // Process this folder
+      await processFolderWithVideos(folder, VIMEO_ACCESS_TOKEN, appRelatedFolders)
+      
+      // If this is Team Library or Sparky Screen Recordings, also fetch its subfolders
+      if (/team.*library/i.test(folderName) || /sparky.*screen.*recording/i.test(folderName)) {
+        console.log(`📁 Fetching subfolders for ${folderName}...`)
+        
+        // Extract the project ID from the URI (e.g., /users/112996063/projects/26555277)
+        const projectId = folder.uri.split('/').pop()
+        console.log(`📁 Project ID: ${projectId}`)
+        
+        try {
+          // Try the projects endpoint instead of folders endpoint
+          const subfoldersResponse = await fetch(`https://api.vimeo.com/users/me/projects/${projectId}/folders`, {
+            headers: {
+              'Authorization': `bearer ${VIMEO_ACCESS_TOKEN}`,
+              'Accept': 'application/vnd.vimeo.*+json;version=3.4'
+            }
+          })
+          
+          console.log(`📁 Subfolders response status:`, subfoldersResponse.status)
+          
+          if (subfoldersResponse.ok) {
+            const subfoldersData = await subfoldersResponse.json()
+            const subfolders = subfoldersData.data || []
+            console.log(`📁 Found ${subfolders.length} subfolders in ${folderName}`)
+            console.log(`📁 Subfolders data:`, JSON.stringify(subfoldersData, null, 2))
+            
+            // Process each subfolder
+            for (const subfolder of subfolders) {
+              console.log(`📁 Processing subfolder: "${subfolder.name}"`)
+              await processFolderWithVideos(subfolder, VIMEO_ACCESS_TOKEN, appRelatedFolders)
+            }
+          } else {
+            console.log(`❌ Subfolders fetch failed:`, subfoldersResponse.status)
+            const errorText = await subfoldersResponse.text()
+            console.log(`❌ Subfolders error details:`, errorText)
+            
+            // Try alternative endpoint
+            console.log(`📁 Trying alternative endpoint...`)
+            const altResponse = await fetch(`https://api.vimeo.com/me/projects/${projectId}/items?per_page=50`, {
+              headers: {
+                'Authorization': `bearer ${VIMEO_ACCESS_TOKEN}`,
+                'Accept': 'application/vnd.vimeo.*+json;version=3.4'
+              }
+            })
+            
+            console.log(`📁 Alternative response status:`, altResponse.status)
+            if (altResponse.ok) {
+              const altData = await altResponse.json()
+              console.log(`📁 Alternative data found ${altData.data?.length || 0} items`)
+              
+              // Process items from alternative endpoint
+              if (altData.data && altData.data.length > 0) {
+                for (const item of altData.data) {
+                  if (item.type === 'folder' && item.folder) {
+                    console.log(`📁 Found subfolder: "${item.folder.name}"`)
+                    // Add videos array to folder object to match expected structure
+                    item.folder.videos = []
+                    await processFolderWithVideos(item.folder, VIMEO_ACCESS_TOKEN, appRelatedFolders)
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error fetching subfolders:`, error)
+        }
+      }
+    }
+
+    console.log(`📊 Final result: ${appRelatedFolders.length} app-related folders`)
+
+    return NextResponse.json({
+      folders: appRelatedFolders,
+      total: appRelatedFolders.length
+    })
+    
+  } catch (error) {
+    console.error('❌ Vimeo folders API error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch folders', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
+
+// Helper function to process a folder and its videos
+async function processFolderWithVideos(folder: any, accessToken: string, foldersList: any[]) {
+  try {
+    const videosResponse = await fetch(`https://api.vimeo.com${folder.uri}/videos`, {
+      headers: {
+        'Authorization': `bearer ${accessToken}`,
+        'Accept': 'application/vnd.vimeo.*+json;version=3.4'
+      }
+    })
+    
+    if (videosResponse.ok) {
+      const videosData = await videosResponse.json()
+      console.log(`🎥 Found ${videosData.data?.length || 0} total videos in "${folder.name}"`)
+      
+      // For the main Sparky Screen Recordings folder, include ALL videos
+      // For subfolders, filter out screen recordings
+      const isMainSparkyFolder = /sparky.*screen.*recording/i.test(folder.name || '')
+      
+      let appVideos
+      if (isMainSparkyFolder) {
+        // Main folder: include ALL videos (screen recordings + liaison videos)
+        appVideos = videosData.data || []
+        console.log(`✅ Main folder "${folder.name}": including all ${appVideos.length} videos`)
+      } else {
+        // Subfolders: filter out screen recordings
+        appVideos = (videosData.data || []).filter((video: any) => {
+          const videoName = video.name || ''
+          
+          // Only exclude obvious screen recordings by title
+          if (/screen\s*recording/i.test(videoName)) {
+            console.log(`🚫 Excluding screen recording: "${videoName}"`)
+            return false
+          }
+          
+          console.log(`✅ Including video: "${videoName}"`)
+          return true
+        })
+        
+        console.log(`✅ After filtering: ${appVideos.length} app videos in "${folder.name}"`)
+      }
+      
+      // Include folder even if empty to show structure
+      folder.videos = appVideos
+      foldersList.push(folder)
+      console.log(`📁 Including folder: "${folder.name}" with ${appVideos.length} videos`)
+    } else {
+      console.log(`❌ Failed to fetch videos for folder "${folder.name}":`, videosResponse.status)
+      folder.videos = []
+      foldersList.push(folder) // Still include folder structure
+    }
+  } catch (error) {
+    console.error(`❌ Error fetching videos for folder ${folder.name}:`, error)
+    folder.videos = []
+    foldersList.push(folder) // Still include folder structure
+  }
+}

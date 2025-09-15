@@ -1,342 +1,463 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import UserManagement from '@/components/admin/UserManagement'
-import GlobalHeader from '@/components/GlobalHeader'
-import { ThemeProvider } from '@/components/ThemeProvider'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import UserManagementModal from '@/components/admin/UserManagementModal'
-import type { UserRole } from '@/types/supabase'
-import type { User } from '@supabase/supabase-js'
+import GlobalHeader from '@/components/GlobalHeader'
 
 export default function UsersPage() {
-  const router = useRouter()
-  const [userRole, setUserRole] = useState<UserRole>('user')
-  const [effectiveRole, setEffectiveRole] = useState<UserRole>('user')
-  const [user, setUser] = useState<User | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({
+    role: ''
+  })
+  const [deletingUsers, setDeletingUsers] = useState<Set<string>>(new Set())
+  const [updatingUser, setUpdatingUser] = useState(false)
+  const [impersonating, setImpersonating] = useState(false)
+
+  // Add impersonation handler
+  const handleImpersonateUser = async (targetUser: any) => {
+    if (!confirm(`🚨 DANGER: Are you sure you want to impersonate ${targetUser.email}? This will log you in as them!`)) {
+      return
+    }
+
+    setImpersonating(true)
+    
+    try {
+      console.log('🎭 Starting impersonation of:', targetUser.email)
+      
+      // Get current session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('No valid session found')
+      }
+      
+      const response = await fetch('/api/admin/impersonate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          targetUserId: targetUser.id,
+          targetUserEmail: targetUser.email,
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('🎭 Impersonation successful:', result)
+        
+        if (result.impersonationLink) {
+          // Store impersonation state before redirect
+          localStorage.setItem('impersonation_data', JSON.stringify({
+            originalUserId: currentUser?.id,
+            originalUserEmail: currentUser?.email,
+            targetUserId: targetUser.id,
+            targetUserEmail: targetUser.email,
+            timestamp: new Date().toISOString()
+          }))
+          
+          // Force localhost redirect by modifying the URL
+          let impersonationUrl = result.impersonationLink
+          console.log('🔍 Original impersonation URL:', impersonationUrl)
+          
+          // Always modify the URL to point to localhost in development
+          if (window.location.hostname === 'localhost') {
+            try {
+              const url = new URL(impersonationUrl)
+              console.log('🔍 Original redirect_to:', url.searchParams.get('redirect_to'))
+              
+              // Force the redirect to localhost
+              url.searchParams.set('redirect_to', `${window.location.origin}/users`)
+              impersonationUrl = url.toString()
+              console.log('🔧 Modified URL for localhost:', impersonationUrl)
+            } catch (urlError) {
+              console.warn('⚠️ Could not modify URL, using original:', urlError)
+            }
+          }
+          
+          // Redirect to the magic link to sign in as the target user
+          console.log('🚀 Final URL:', impersonationUrl)
+          alert(`🎭 Impersonation activated! Redirecting to sign in as ${targetUser.email}`)
+          
+          // For localhost, try opening in same window
+          if (window.location.hostname === 'localhost') {
+            window.location.href = impersonationUrl
+          } else {
+            // For production, use direct redirect
+            window.location.href = impersonationUrl
+          }
+        } else {
+          throw new Error('No impersonation link received')
+        }
+      } else {
+        const error = await response.json()
+        console.error('❌ Impersonation failed:', error)
+        alert('Impersonation failed: ' + (error.error || 'Unknown error'))
+      }
+    } catch (error) {
+      console.error('❌ Error during impersonation:', error)
+      alert('Error during impersonation: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setImpersonating(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchUserRole = async () => {
-      try {
-        // Check for development mode first
-        const devMode = process.env.NODE_ENV === 'development'
-        let currentUser: User | null = null
-        
-        if (devMode) {
-          // In development, check if we have a mock user from AuthProvider
-          const authData = localStorage.getItem('dev-auth-user')
-          if (authData) {
-            currentUser = JSON.parse(authData)
-            console.log('🔧 Users page - Using dev mode user:', currentUser?.email)
-          }
-        }
-        
-        // If no dev user, try Supabase
-        if (!currentUser) {
-          const { data: { user: supabaseUser } } = await supabase.auth.getUser()
-          currentUser = supabaseUser
-        }
-        
-        if (currentUser) {
-          setUser(currentUser)
-          
-          let originalRole: UserRole = 'user'
-          
-          try {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', currentUser.id)
-              .single()
-            
-            if (profile) {
-              originalRole = profile.role as UserRole
-            } else {
-              // Database profile doesn't exist, use fallback mapping
-              console.log('🔧 Users page - Using fallback role mapping for:', currentUser.email)
-              const roleMap: { [key: string]: UserRole } = {
-                'john@tpnlife.com': 'admin',
-                'john+admin@tpnlife.com': 'admin',
-                'john+supervisor@tpnlife.com': 'supervisor',
-                'john+3@tpnlife.com': 'supervisor',
-                'john+s2@tpnlife.com': 'supervisor', 
-                'john+s3@tpnlife.com': 'supervisor',
-                'john+manager@tpnlife.com': 'manager',
-                'john+2@tpnlife.com': 'manager',
-                'john+m2@tpnlife.com': 'manager',
-                'john+user@tpnlife.com': 'user',
-                'john+1@tpnlife.com': 'user',
-                // Development mode credentials
-                'admin@test.com': 'admin',
-                'manager@test.com': 'manager',
-                'user@test.com': 'user'
-              }
-              originalRole = roleMap[currentUser.email || ''] || 'user'
-              console.log('✅ Users page - Fallback role assigned:', originalRole)
-            }
-          } catch (error) {
-            // Database query failed, use fallback mapping
-            console.log('❌ Users page - Database query failed, using fallback for:', currentUser.email)
-            const roleMap: { [key: string]: UserRole } = {
-              'john@tpnlife.com': 'admin',
-              'john+admin@tpnlife.com': 'admin',
-              'john+supervisor@tpnlife.com': 'supervisor',
-              'john+3@tpnlife.com': 'supervisor',
-              'john+s2@tpnlife.com': 'supervisor', 
-              'john+s3@tpnlife.com': 'supervisor',
-              'john+manager@tpnlife.com': 'manager',
-              'john+2@tpnlife.com': 'manager',
-              'john+m2@tpnlife.com': 'manager',
-              'john+user@tpnlife.com': 'user',
-              'john+1@tpnlife.com': 'user',
-              // Development mode credentials
-              'admin@test.com': 'admin',
-              'manager@test.com': 'manager',
-              'user@test.com': 'user'
-            }
-            originalRole = roleMap[currentUser.email || ''] || 'user'
-            console.log('✅ Users page - Fallback role assigned after error:', originalRole)
-          }
-          
-          setUserRole(originalRole)
-          
-          // Check for impersonation
-          const impersonationActive = localStorage.getItem('impersonation_active')
-          const impersonatedUserData = localStorage.getItem('impersonation_target')
-          
-          if (impersonationActive === 'true' && impersonatedUserData) {
-            const impersonated = JSON.parse(impersonatedUserData)
-            setEffectiveRole(impersonated.role as UserRole)
-            console.log('🎭 Users page - Impersonation detected:', {
-              originalRole,
-              effectiveRole: impersonated.role,
-              impersonatedUser: impersonated
-            })
-          } else {
-            setEffectiveRole(originalRole)
-            console.log('👤 Users page - Using role:', originalRole)
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching user role:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchUserRole()
-    
-    // Listen for storage changes (impersonation start/stop)
-    const handleStorageChange = () => {
-      fetchUserRole()
-    }
-    
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
+    getCurrentUser()
+    fetchUsers()
   }, [])
 
-  const impersonateUser = async (userEmail: string) => {
+  const getCurrentUser = async () => {
     try {
-      console.log(`🎭 Starting impersonation for: ${userEmail}`)
+      const { data: { user } } = await supabase.auth.getUser()
+      setCurrentUser(user)
       
-      // Sign out current user first
-      await supabase.auth.signOut()
-      console.log('✅ Signed out current user')
-      
-      // Check if user exists in auth system
-      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers()
-      
-      if (listError) {
-        console.error('Error listing users:', listError)
-        alert(`❌ Cannot access user list: ${listError.message}`)
-        return
-      }
-      
-      let authUser = authUsers.users.find(u => u.email === userEmail)
-      
-      // If user doesn't exist in auth, create them
-      if (!authUser) {
-        console.log(`📝 Creating auth user for: ${userEmail}`)
+      // Fetch user profile to get role
+      if (user) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
         
-        const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-          email: userEmail,
-          password: 'TempPass123!',
-          email_confirm: true,
-          user_metadata: {
-            display_name: userEmail.split('@')[0]
-          }
-        })
-        
-        if (createError) {
-          console.error('Error creating user:', createError)
-          alert(`❌ Failed to create user: ${createError.message}`)
-          return
+        if (!error && profile) {
+          setUserRole(profile.role)
+          console.log('👤 User role:', profile.role)
         }
-        
-        authUser = newUser.user
-        console.log(`✅ Created auth user with ID: ${authUser?.id}`)
       }
-      
-      if (!authUser) {
-        alert('❌ Could not find or create user')
-        return
-      }
-      
-      // Try direct password sign-in first
-      console.log('🔐 Attempting password sign-in...')
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: userEmail,
-        password: 'TempPass123!'
-      })
-      
-      if (signInData.user) {
-        console.log('✅ Successfully signed in with password')
-        alert(`✅ Successfully impersonating ${userEmail}!
-
-You are now signed in as this user. 
-Record a video and it will be attributed to them.
-
-Redirecting to main app...`)
-        
-        setTimeout(() => {
-          window.location.href = '/'
-        }, 2000)
-        return
-      }
-      
-      // If password fails, try admin sign-in
-      console.log('🔄 Password failed, trying admin method...')
-      
-      // Create a temporary session for the user
-      const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
-        type: 'magiclink',
-        email: userEmail,
-        options: {
-          redirectTo: window.location.origin
-        }
-      })
-      
-      if (sessionError) {
-        console.error('Error generating session:', sessionError)
-        alert(`❌ Session error: ${sessionError.message}`)
-        return
-      }
-      
-      // Extract access token if available
-      const actionLink = sessionData.properties.action_link
-      console.log('📧 Generated action link:', actionLink)
-      
-      // Parse the URL to get tokens
-      const url = new URL(actionLink)
-      const accessToken = url.searchParams.get('access_token')
-      const refreshToken = url.searchParams.get('refresh_token')
-      
-      if (accessToken && refreshToken) {
-        console.log('🔑 Setting session with tokens...')
-        
-        const { data: sessionSetData, error: sessionSetError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        })
-        
-        if (sessionSetError) {
-          console.error('Error setting session:', sessionSetError)
-          alert(`❌ Session setup error: ${sessionSetError.message}`)
-          return
-        }
-        
-        console.log('✅ Session set successfully')
-        alert(`✅ Successfully impersonating ${userEmail}!
-
-You are now signed in as this user.
-Record a video and it will be attributed to them.
-
-Redirecting to main app...`)
-        
-        setTimeout(() => {
-          window.location.href = '/'
-        }, 2000)
-        
-      } else {
-        alert(`❌ Could not extract session tokens from magic link.
-
-Try manually signing in as ${userEmail} with password: TempPass123!`)
-      }
-      
     } catch (error) {
-      console.error('❌ Impersonation failed:', error)
-      alert(`❌ Impersonation failed: ${error}
+      console.error('Error getting current user:', error)
+    }
+  }
 
-You may need to manually sign in as ${userEmail}`)
+  const fetchUsers = async () => {
+    try {
+      console.log('🔄 Starting to fetch users...')
+      
+      // Try a simpler query first to see what columns exist
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+
+      if (error) {
+        console.error('❌ Supabase error fetching users:', error)
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        // Try alternative query without ordering
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('profiles')
+          .select('id, email, role, created_at, full_name')
+        
+        if (fallbackError) {
+          console.error('❌ Fallback query also failed:', fallbackError)
+          return
+        }
+        
+        console.log('✅ Fallback query succeeded:', fallbackData?.length || 0)
+        setUsers(fallbackData || [])
+        return
+      }
+
+      console.log('✅ Successfully fetched users:', data?.length || 0)
+      console.log('👥 Users data:', data)
+      setUsers(data || [])
+    } catch (error) {
+      console.error('❌ Unexpected error fetching users:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleEditUser = (user: any) => {
+    setSelectedUser(user)
+    setEditForm({
+      role: user.role || 'user'
+    })
+    setShowEditModal(true)
+  }
+
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return
+
+    setUpdatingUser(true)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          role: editForm.role
+        })
+        .eq('id', selectedUser.id)
+
+      if (error) {
+        console.error('Error updating user:', error)
+        alert('Failed to update user: ' + error.message)
+        return
+      }
+
+      console.log('✅ User updated successfully')
+      setShowEditModal(false)
+      setSelectedUser(null)
+      fetchUsers() // Refresh the users list
+    } catch (error) {
+      console.error('Error updating user:', error)
+      alert('Error updating user: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setUpdatingUser(false)
+    }
+  }
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
+      return
+    }
+
+    setDeletingUsers(prev => new Set([...prev, userId]))
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId)
+
+      if (error) {
+        console.error('Error deleting user:', error)
+        alert('Failed to delete user: ' + error.message)
+        return
+      }
+
+      console.log('✅ User deleted successfully')
+      fetchUsers() // Refresh the users list
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      alert('Error deleting user: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setDeletingUsers(prev => {
+        const updated = new Set(prev)
+        updated.delete(userId)
+        return updated
+      })
     }
   }
 
   if (loading) {
     return (
-      <ThemeProvider>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </ThemeProvider>
-    )
-  }
-
-  if (!user) {
-    // Redirect to home page for authentication
-    router.push('/?redirect=users')
-    return (
-      <ThemeProvider>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Redirecting to login...</h2>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          </div>
-        </div>
-      </ThemeProvider>
-    )
-  }
-
-  // Check if user has permission to access management panels
-  if (!['admin', 'supervisor', 'manager'].includes(effectiveRole)) {
-    return (
-      <ThemeProvider>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
-            <p className="text-gray-600 dark:text-gray-400">You don't have permission to access this page.</p>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">Current role: {effectiveRole}</p>
-            <div className="mt-4">
-              <a href="/" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                Go to Home
-              </a>
+      <>
+        <GlobalHeader user={currentUser} />
+        <div className="min-h-screen bg-gray-100 dark:bg-gray-900 pt-16 relative">
+          <div className="container mx-auto px-4 py-8">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-600 dark:text-gray-400 mt-4">Loading users...</p>
             </div>
           </div>
         </div>
-      </ThemeProvider>
+      </>
     )
   }
 
   return (
-    <ThemeProvider>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <GlobalHeader user={user} />
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-              User Management
-            </h1>
-            <Suspense fallback={
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    <>
+      <GlobalHeader user={currentUser} />
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 pt-16 relative">
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+            👥 Users
+          </h1>
+
+          {users.length === 0 ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+              <div className="text-6xl mb-4">👥</div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                No users found
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                No user profiles have been created yet.
+              </p>
+            </div>
+          ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+            {users.map((user: any) => (
+              <div 
+                key={user.id}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow duration-200 relative group"
+              >
+                {/* Admin Controls - Only admins can edit/delete */}
+                {userRole === 'admin' && (
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
+                    <button
+                      onClick={() => handleImpersonateUser(user)}
+                      disabled={impersonating}
+                      className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-500 text-white p-2 rounded-full shadow-lg transition-colors"
+                      title="Impersonate User"
+                    >
+                      {impersonating ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 616 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                    {currentUser?.id !== user.id && (
+                      <>
+                        <button
+                          onClick={() => handleEditUser(user)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full shadow-lg"
+                          title="Edit User"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(user.id, user.full_name || user.email)}
+                          disabled={deletingUsers.has(user.id)}
+                          className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete User"
+                        >
+                          {deletingUsers.has(user.id) ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+                
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    {user.full_name || user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || 'Unknown User'}
+                  </h3>
+                  
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
+                    {user.email}
+                  </p>
+                  
+                  {user.role && (
+                    <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-2 ${
+                      user.role === 'admin' 
+                        ? 'bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200'
+                        : user.role === 'supervisor'
+                        ? 'bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200'
+                        : user.role === 'manager'
+                        ? 'bg-orange-100 dark:bg-orange-800 text-orange-800 dark:text-orange-200'
+                        : 'bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200'
+                    }`}>
+                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                    </div>
+                  )}
+                  
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Joined {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
+                  </div>
+                </div>
               </div>
-            }>
-              <UserManagementModal />
-            </Suspense>
+            ))}
           </div>
+          )}
         </div>
       </div>
-    </ThemeProvider>
+
+      {/* Edit User Modal */}
+      {showEditModal && selectedUser && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowEditModal(false)
+            setSelectedUser(null)
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Edit User
+              </h3>
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setSelectedUser(null)
+                }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  User
+                </label>
+                <div className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                  {selectedUser.display_name || selectedUser.full_name || 'No Name'}
+                </div>
+                <div className="text-md font-bold text-gray-600 dark:text-gray-400">
+                  {selectedUser.email}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Role
+                </label>
+                <select
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  disabled={updatingUser}
+                >
+                  <option value="user">User</option>
+                  <option value="manager">Manager</option>
+                  <option value="supervisor">Supervisor</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setSelectedUser(null)
+                }}
+                disabled={updatingUser}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateUser}
+                disabled={updatingUser}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg flex items-center gap-2 transition-colors"
+              >
+                {updatingUser && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                )}
+                {updatingUser ? 'Updating...' : 'Update User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

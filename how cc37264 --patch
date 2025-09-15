@@ -1,0 +1,10 @@
+[33mcommit cc37264d5539329008fcc4e7bdf9060771220052[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mclean-deployed[m[33m, [m[1;31morigin/clean-deployed[m[33m, [m[1;32mmain[m[33m)[m
+Author: afun1 <john@tpnlife.com>
+Date:   Thu Sep 11 03:46:15 2025 -0600
+
+    🚨 CRITICAL: Save state before clean branch - includes mass user setup
+
+ src/app/api/folders/setup/route.ts | 206 [32m++++++++++++++++++++++[m[31m---------------[m
+ src/app/folders/page.tsx           |  51 [32m+++++++++[m
+ src/app/page.tsx                   |  54 [32m++++++[m[31m----[m
+ 3 files changed, 207 insertions(+), 104 deletions(-)

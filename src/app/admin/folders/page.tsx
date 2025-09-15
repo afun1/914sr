@@ -1,465 +1,494 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import GlobalHeader from '@/components/GlobalHeader'
 import { supabase } from '@/lib/supabase'
-import { ThemeProvider } from '@/components/ThemeProvider'
+import GlobalHeader from '@/components/GlobalHeader'
 
 export default function AdminFoldersPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [folders, setFolders] = useState<any[]>([])
-  const [selectedFolder, setSelectedFolder] = useState(null)
-  const [folderVideos, setFolderVideos] = useState<any[]>([])
+  const [selectedFolder, setSelectedFolder] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [videosLoading, setVideosLoading] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
-  const [error, setError] = useState('')
-  
-  // User search dropdown states
-  const [showUserSearch, setShowUserSearch] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [suggestedUsers, setSuggestedUsers] = useState<any[]>([])
-  const [allUsers, setAllUsers] = useState<any[]>([])
-  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [modalVideo, setModalVideo] = useState<any>(null)
+  const [editingMeta, setEditingMeta] = useState<any>(null)
+  const [savingMeta, setSavingMeta] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [deletingItems, setDeletingItems] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    fetchFolders()
-    getCurrentUser()
-    fetchAllUsers()
-  }, [])
-
-  const fetchAllUsers = async () => {
-    try {
-      const { data: users, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('display_name')
-      
-      if (error) {
-        console.error('Error fetching users:', error)
-        return
-      }
-      
-      setAllUsers(users || [])
-    } catch (error) {
-      console.error('Error fetching users:', error)
-    }
+  // Helpers
+  const getIdFromUri = (uri?: string | null) => {
+    if (!uri) return ''
+    const parts = uri.split('/')
+    return parts[parts.length - 1] || ''
   }
 
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value)
-    
-    if (value.length > 0) {
-      const filtered = allUsers.filter((user: any) => 
-        user.display_name?.toLowerCase().includes(value.toLowerCase()) ||
-        user.email?.toLowerCase().includes(value.toLowerCase())
-      )
-      setSuggestedUsers(filtered.slice(0, 5)) // Limit to 5 suggestions
-    } else {
-      setSuggestedUsers([])
+  const getVideoMeta = (video: any) => {
+    const description = video?.description || ''
+    const customerMatch = description.match(/Customer: ([^\n\r]+?)(?:\s+Email:|$)/)
+    const emailMatch = description.match(/Email: ([^\n\r]+?)(?:\s+Liaison:|$)/)
+    const liaisonMatch = description.match(/Liaison: ([^\n\r]+?)(?:\s+Recorded:|$)/)
+    // attempt to find any liaison email present in the description (fallback)
+    const anyEmailMatches = description.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig) || []
+
+    const recordedMatch = description.match(/Recorded: ([^\n\r]+?)(?:\n|$)/)
+
+    let customerName = customerMatch ? customerMatch[1].trim() : (video?.customerName || '')
+    // Fallback: strip common prefixes from video.name like "Recording for"
+    if (!customerName && video?.name) {
+      customerName = video.name.replace(/^Recording(?: session)? for\s*/i, '').trim()
     }
-  }
 
-  const createSimpleFolder = async (folderName: string) => {
-    try {
-      setCreatingFolder(true)
-      console.log(`Creating simple folder: ${folderName}`)
-      
-      const response = await fetch('/api/folders/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folderName: folderName
-        })
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        alert(`✅ Folder "${folderName}" created successfully!
+    const customerEmail = emailMatch ? emailMatch[1].trim() : (video?.customerEmail || '')
+    const liaisonName = liaisonMatch ? liaisonMatch[1].trim() : (video?.liaisonName || '')
+    const recordedTime = recordedMatch ? recordedMatch[1].trim() : (video?.created_time ? new Date(video.created_time).toLocaleString() : '')
 
-You can now manually move videos to this folder as needed.`)
-        
-        refreshFolders()
-      } else {
-        alert(`❌ Error: ${result.error}`)
+    let comments = ''
+    if (recordedMatch) {
+      const afterRecorded = description.split('Recorded: ' + recordedMatch[1])[1]
+      if (afterRecorded) {
+        comments = afterRecorded.trim()
+        if (comments.startsWith('Notes:')) comments = comments.substring(6).trim()
       }
-      
-    } catch (error) {
-      alert('Failed to create folder')
-      console.error('Error creating folder:', error)
-    } finally {
-      setCreatingFolder(false)
     }
-  }
 
-  const createFolderForUser = async (userEmail: string, displayName: string) => {
-    try {
-      setCreatingFolder(true)
-      console.log(`Creating folder for: ${displayName} (${userEmail})`)
-      
-      const response = await fetch('/api/folders/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create-user-folder',
-          userEmail: userEmail,
-          displayName: displayName
-        })
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        alert(`✅ Folder created successfully!
+    // Determine liaison email: prefer explicit prop, otherwise pick an email in the description that's not the customerEmail
+    let liaisonEmail = video?.liaisonEmail || ''
+    const foundEmails = anyEmailMatches.map((e: string) => e.toLowerCase())
+    const custEmailLower = (video?.customerEmail || customerMatch?.[1] || '').toLowerCase()
+    const pick = foundEmails.find((e: string) => e && e !== custEmailLower)
+    if (!liaisonEmail && pick) liaisonEmail = pick
 
-User: ${displayName}
-Videos imported: ${result.videosImported || 0}
-
-They can now see their videos in "Your Recordings"!`)
-        
-        // Clear search and refresh
-        setShowUserSearch(false)
-        setSearchTerm('')
-        setSuggestedUsers([])
-        refreshFolders()
-        fetchAllUsers() // Refresh user list
-      } else {
-        alert(`❌ Error: ${result.error}`)
-      }
-      
-    } catch (error) {
-      alert('Failed to create folder')
-      console.error('Error creating folder:', error)
-    } finally {
-      setCreatingFolder(false)
-    }
+    return { customerName, customerEmail, liaisonName, liaisonEmail, recordedTime, comments }
   }
 
   useEffect(() => {
-    fetchFolders()
     getCurrentUser()
+    fetchFolders()
   }, [])
+
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      const target = e.target as Element
+      if (!target.closest('#userSearch') && !target.closest('.user-dropdown')) setShowDropdown(false)
+    }
+    if (showDropdown) document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [showDropdown])
 
   const getCurrentUser = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      setCurrentUser(user as any)
-    } catch (error) {
-      console.error('Error getting current user:', error)
+      setCurrentUser(user)
+      if (!user) return
+      const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      if (!error && profile) setUserRole(profile.role)
+    } catch (err) {
+      console.error('Error getting current user:', err)
     }
   }
 
   const fetchFolders = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/vimeo/folders')
-      if (response.ok) {
-        const data = await response.json()
-        setFolders(data.folders || [])
+      const vimeoResp = await fetch('/api/vimeo/folders')
+      const all: any[] = []
+      if (vimeoResp.ok) {
+        const json = await vimeoResp.json()
+        all.push(...(json.folders || []))
       }
-    } catch (error) {
-      console.error('Error fetching folders:', error)
+
+      // build processedFolders (keep main and liaison local folders)
+      let processed = all.map((f: any) => ({ ...f, isMainFolder: /team.*library/i.test(f.name || '') || /sparky.*screen.*recording/i.test(f.name || ''), customerCount: (f.videos || []).length }))
+
+      // fetch profiles and build liaison folders
+      try {
+        const { data: profiles, error } = await supabase.from('profiles').select('id, display_name, first_name, last_name, email')
+        if (!error && profiles) {
+          const allVideos = all.flatMap(f => f.videos || [])
+          const liaisonFolders = profiles.map((p: any) => {
+            const name = (p.display_name || `${p.first_name || ''} ${p.last_name || ''}`).trim()
+            const email = (p.email || '').trim()
+            const emailLower = email.toLowerCase()
+            const matchedVideos = allVideos.filter((v: any) => {
+              const desc = (v.description || '').toLowerCase()
+              const vLiaisonEmail = (v.liaisonEmail || '').toLowerCase()
+              const vCustomerEmail = (v.customerEmail || '').toLowerCase()
+              const vLiaisonName = (v.liaisonName || '').toLowerCase()
+              const serialized = JSON.stringify(v || {}).toLowerCase()
+              // match by explicit liaisonEmail, customerEmail, any occurrence of the email in the serialized video, or liaisonName equality
+              if (emailLower) {
+                if (vLiaisonEmail === emailLower) return true
+                if (vCustomerEmail === emailLower) return true
+                if (desc.includes(emailLower)) return true
+                if (serialized.includes(emailLower)) return true
+              }
+              if (vLiaisonName && vLiaisonName === name.toLowerCase()) return true
+              return false
+            })
+            console.log('📁 Liaison folder', name, email, 'matched videos:', matchedVideos.length)
+            // Store email separately so we can render it on the second line
+            return { name, email, uri: `local://liaison/${p.id}`, isMainFolder: false, videos: matchedVideos, customerCount: new Set(matchedVideos.map((mv: any) => (mv.name || mv.customerName || 'Unknown'))).size }
+          })
+          processed.push(...liaisonFolders)
+        }
+      } catch (e) { console.warn('profiles fallback fail', e) }
+
+      // ensure main repo first
+      processed.sort((a: any, b: any) => {
+        if (a.isMainFolder && !b.isMainFolder) return -1
+        if (!a.isMainFolder && b.isMainFolder) return 1
+        return (a.name || '').localeCompare(b.name || '')
+      })
+
+      setFolders(processed)
+    } catch (err) {
+      console.error('Error fetching folders:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchFolderVideos = async (folderId: string, folderName: string) => {
+  const openFolder = (folder: any) => {
+    setSelectedFolder(folder)
+  }
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true)
     try {
-      setVideosLoading(true)
-      console.log(`📹 Fetching videos from folder: ${folderName}`)
+      const { data, error } = await supabase.from('profiles').select('id, display_name, first_name, last_name, email').order('display_name')
+      if (error) { console.error('Error fetching users', error); return }
+      setUsers(data || [])
+      setFilteredUsers(data || [])
+    } catch (err) { console.error('Error fetching users', err) } finally { setLoadingUsers(false) }
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setShowDropdown(true)
+    if (!value.trim()) { setFilteredUsers(users); setSelectedUser(null); return }
+    if ((!users || users.length === 0) && !loadingUsers) fetchUsers().catch(() => {})
+    const term = value.toLowerCase()
+    const filtered = (users || []).filter(u => ((u.display_name || `${u.first_name || ''} ${u.last_name || ''}`).toLowerCase().includes(term) || (u.email || '').toLowerCase().includes(term)))
+    setFilteredUsers(filtered)
+  }
+
+  const handleUserSelect = (user: any) => {
+    setSelectedUser(user)
+    const displayName = user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown User'
+    setSearchQuery(`${displayName} (${user.email})`)
+    setShowDropdown(false)
+
+    // open liaison folder if exists or build local
+    const liaisonUri = `local://liaison/${user.id}`
+    const userEmailLower = (user.email || '').toLowerCase()
+    const existing = folders.find((f: any) => {
+      if (f.isMainFolder) return false
+      const lower = (f.name || '').toLowerCase()
+      const folderEmailLower = ((f.email || '')).toLowerCase()
+      return f.uri === liaisonUri || lower.includes(displayName.toLowerCase()) || (userEmailLower && folderEmailLower && folderEmailLower.includes(userEmailLower))
+    })
+    if (existing) { openFolder(existing); return }
+    const allVideos = folders.flatMap(f => f.videos || [])
+    const email = (user.email || '').toLowerCase()
+    const matchedVideos = allVideos.filter((v: any) => {
+      const desc = (v.description || '').toLowerCase()
+      const vLiaisonEmail = (v.liaisonEmail || '').toLowerCase()
+      const vCustomerEmail = (v.customerEmail || '').toLowerCase()
+      const vLiaisonName = (v.liaisonName || '').toLowerCase()
+      const serialized = JSON.stringify(v || {}).toLowerCase()
+      if (email && (vLiaisonEmail === email || vCustomerEmail === email || desc.includes(email) || serialized.includes(email))) return true
+      if (vLiaisonName && vLiaisonName === displayName.toLowerCase()) return true
+      return false
+    })
+    console.log('🔎 User select', displayName, email, 'matched', matchedVideos.length, 'videos')
+    const local = { name: displayName, email: user.email || '', uri: liaisonUri, isMainFolder: false, videos: matchedVideos, customerCount: new Set(matchedVideos.map((m: any) => m.name || m.customerName || 'Unknown')).size }
+    openFolder(local)
+  }
+
+  // Admin metadata editing
+  const handleOpenEditMeta = (video: any) => {
+    if (userRole !== 'admin') return
+    const meta = getVideoMeta(video)
+    setEditingMeta({ videoUri: video.uri, customerName: meta.customerName || '', customerEmail: meta.customerEmail || '', liaisonName: meta.liaisonName || '', liaisonEmail: meta.liaisonEmail || '', comments: meta.comments || '' })
+    setModalVideo(video)
+  }
+
+  const handleCancelEditMeta = () => setEditingMeta(null)
+
+  const handleSaveMeta = async () => {
+    if (!editingMeta || !editingMeta.videoUri) return
+    setSavingMeta(true)
+    try {
+      const videoId = getIdFromUri(editingMeta.videoUri)
+      // Try to persist to the server; if it fails, fall back to local update
+      try {
+        const res = await fetch(`/api/vimeo/videos?update=${encodeURIComponent(videoId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerName: editingMeta.customerName, customerEmail: editingMeta.customerEmail, liaisonName: editingMeta.liaisonName, liaisonEmail: editingMeta.liaisonEmail, comments: editingMeta.comments })
+        })
+        if (!res.ok) {
+          const errText = await res.text()
+          console.warn('⚠️ Remote save failed, falling back to local update:', errText)
+        } else {
+          console.log('✅ Remote save succeeded')
+        }
+      } catch (apiErr) {
+        console.warn('⚠️ Error calling save API, falling back to local update:', apiErr)
+      }
+
+      // Always apply local state update so user sees their changes immediately
+      setModalVideo((prev: any) => prev ? { ...prev, customerName: editingMeta.customerName, customerEmail: editingMeta.customerEmail, liaisonName: editingMeta.liaisonName, liaisonEmail: editingMeta.liaisonEmail, _comments: editingMeta.comments } : prev)
+      setSelectedFolder((prev: any) => {
+        if (!prev) return prev
+        const updated = (prev.videos || []).map((v: any) => v.uri === editingMeta.videoUri ? { ...v, customerName: editingMeta.customerName, customerEmail: editingMeta.customerEmail, liaisonName: editingMeta.liaisonName, liaisonEmail: editingMeta.liaisonEmail, _comments: editingMeta.comments } : v)
+        return { ...prev, videos: updated }
+      })
+      setEditingMeta(null)
+    } catch (err) { console.error('save meta error', err); alert('Error saving metadata: ' + (err instanceof Error ? err.message : 'Unknown')) }
+    finally { setSavingMeta(false) }
+  }
+
+  const handleDeleteVideo = async (videoUri: string, videoName: string) => {
+    if (!confirm(`Are you sure you want to delete the video "${videoName}"?`)) return
+    const videoId = getIdFromUri(videoUri)
+    if (videoId) setDeletingItems(prev => new Set([...Array.from(prev), videoId]))
+    try {
+      const res = await fetch(`/api/vimeo/videos?delete=${videoId}`, { method: 'DELETE' })
+      if (!res.ok) { const err = await res.text(); throw new Error(err) }
+      if (selectedFolder) setSelectedFolder((prev: any) => ({ ...prev, videos: (prev.videos || []).filter((v: any) => v.uri !== videoUri) }))
+      fetchFolders()
+    } catch (err) { console.error('delete video err', err); alert('Failed to delete video') }
+    finally { if (videoId) setDeletingItems(prev => { const s = new Set(prev); s.delete(videoId); return s }) }
+  }
+
+  const handleDeleteFolder = async (folderUri: string, folderName: string) => {
+    if (!confirm(`Are you sure you want to delete the folder "${folderName}" and ALL its videos? This action cannot be undone.`)) {
+      return
+    }
+
+    const folderId = getIdFromUri(folderUri)
+    console.log('🗑️ Attempting to delete folder:', folderId, 'from URI:', folderUri)
+    if (folderId) setDeletingItems(prev => new Set([...Array.from(prev), folderId]))
+
+    try {
+      const apiUrl = `/api/vimeo/folders?delete=${folderId}`
+      console.log('📡 Making DELETE request to:', apiUrl)
       
-      const response = await fetch(`/api/vimeo/folders/${folderId}/videos`)
+      const response = await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      console.log('📡 Response status:', response.status)
+      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
+
       if (response.ok) {
-        const data = await response.json()
-        setFolderVideos(data.videos || [])
-        setSelectedFolder({ id: folderId, name: folderName } as any)
+        const result = await response.json()
+        console.log('✅ Folder deleted successfully:', result)
+        // If we're currently viewing the deleted folder, go back to folders view
+        if (selectedFolder && selectedFolder.uri === folderUri) {
+          setSelectedFolder(null)
+        }
+        fetchFolders() // Refresh the folders list
+      } else {
+        const contentType = response.headers.get('content-type')
+        console.log('❌ Response content-type:', contentType)
+        
+        let errorMessage = 'Unknown error'
+        if (contentType && contentType.includes('application/json')) {
+          const error = await response.json()
+          errorMessage = error.error || error.message || 'Unknown error'
+        } else {
+          const errorText = await response.text()
+          console.log('❌ Raw error response:', errorText.substring(0, 200))
+          errorMessage = 'Server returned HTML instead of JSON - API route may not exist'
+        }
+        
+        console.error('❌ Failed to delete folder:', errorMessage)
+        alert('Failed to delete folder: ' + errorMessage)
       }
     } catch (error) {
-      console.error('Error fetching folder videos:', error)
+      console.error('❌ Error deleting folder:', error)
+      alert('Error deleting folder: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
-      setVideosLoading(false)
+      if (folderId) setDeletingItems(prev => {
+        const updated = new Set(prev)
+        updated.delete(folderId)
+        return updated
+      })
     }
   }
 
-  const refreshFolders = () => {
-    fetchFolders()
-    setSelectedFolder(null)
-    setFolderVideos([])
-  }
-
-  const removeDuplicates = () => {
-    console.log('Remove duplicates functionality')
+  if (loading) {
+    return (
+      <>
+        <GlobalHeader user={currentUser} />
+        <div className="min-h-screen bg-gray-100 dark:bg-gray-900 pt-16">
+          <div className="container mx-auto px-4 py-8 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4">Loading folders...</p>
+          </div>
+        </div>
+      </>
+    )
   }
 
   return (
-    <ThemeProvider>
-      {currentUser && <GlobalHeader user={currentUser} />}
+    <>
+      <GlobalHeader user={currentUser} />
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 pt-16">
         <div className="container mx-auto px-4 py-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  Folder Manager
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400">
-                  {selectedFolder ? `Videos in ${(selectedFolder as any).name}` : 'Manage your Vimeo folders and organization'}
-                </p>
-              </div>
-              {selectedFolder && (
-                <button
-                  onClick={() => {
-                    setSelectedFolder(null)
-                    setFolderVideos([])
-                  }}
-                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
-                >
-                  ← Back to Folders
-                </button>
-              )}
-            </div>
+          <h1 className="text-3xl font-bold mb-6">Video Folders</h1>
 
-            <div className="flex gap-4 mb-6">
-              <button 
-                onClick={refreshFolders}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                🔄 Refresh
-              </button>
-              
-              {/* Smart Add Folder Button with Dropdown */}
-              <div className="relative">
-                <button 
-                  onClick={() => setShowUserSearch(!showUserSearch)}
-                  disabled={creatingFolder}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  {creatingFolder ? 'Creating...' : 'Add Folder'}
-                </button>
-                
-                {/* Search Dropdown */}
-                {showUserSearch && (
-                  <div className="absolute top-full left-0 mt-2 w-80 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-50">
-                    <div className="p-4">
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                        Create Folder for User
-                      </h3>
-                      
-                      {/* Search Input */}
-                      <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="Search by name or email..."
-                          value={searchTerm}
-                          onChange={(e) => handleSearchChange(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-600 dark:text-white"
-                          autoFocus
-                        />
-                        <svg className="absolute right-3 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                      </div>
-                      
-                      {/* Suggestions */}
-                      {suggestedUsers.length > 0 && (
-                        <div className="mt-3 space-y-1">
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Existing users:</p>
-                          {suggestedUsers.map((user: any, index) => (
-                            <button
-                              key={index}
-                              onClick={() => createFolderForUser(user.email, user.display_name)}
-                              disabled={creatingFolder}
-                              className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50"
-                            >
-                              <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                {user.display_name}
-                              </div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {user.email}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {/* Quick Add Known Users */}
-                      {searchTerm.length === 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Quick create:</p>
-                          <button
-                            onClick={() => createSimpleFolder('Nicolaas Knook - Screen Recordings')}
-                            disabled={creatingFolder}
-                            className="w-full text-left px-3 py-2 rounded-md bg-purple-50 dark:bg-purple-900 border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-800 disabled:opacity-50 mb-2"
-                          >
-                            <div className="text-sm font-medium text-purple-800 dark:text-purple-200">
-                              Create Nicolaas Folder (Simple)
-                            </div>
-                            <div className="text-xs text-purple-600 dark:text-purple-400">
-                              Just creates the Vimeo folder - no user management
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => createFolderForUser('nicolaas.phg@checkcas.com', 'Nicolaas Knook')}
-                            disabled={creatingFolder}
-                            className="w-full text-left px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800 disabled:opacity-50 mb-2"
-                          >
-                            <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                              Create Nicolaas Folder (Full Setup)
-                            </div>
-                            <div className="text-xs text-blue-600 dark:text-blue-400">
-                              nicolaas.phg@checkcas.com + database + auto-move
-                            </div>
-                          </button>
-                        </div>
-                      )}
-                      
-                      {/* Manual Entry */}
-                      {searchTerm.length > 0 && suggestedUsers.length === 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Create new user:</p>
-                          <button
-                            onClick={() => {
-                              const email = searchTerm.includes('@') ? searchTerm : `${searchTerm}@gmail.com`
-                              const name = searchTerm.includes('@') ? searchTerm.split('@')[0] : searchTerm
-                              createFolderForUser(email, name)
-                            }}
-                            disabled={creatingFolder}
-                            className="w-full text-left px-3 py-2 rounded-md bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-800 disabled:opacity-50"
-                          >
-                            <div className="text-sm font-medium text-green-800 dark:text-green-200">
-                              Create folder for "{searchTerm}"
-                            </div>
-                            <div className="text-xs text-green-600 dark:text-green-400">
-                              {searchTerm.includes('@') ? searchTerm : `${searchTerm}@gmail.com`}
-                            </div>
-                          </button>
-                        </div>
-                      )}
-                      
-                      {/* Close Button */}
-                      <button
-                        onClick={() => {
-                          setShowUserSearch(false)
-                          setSearchTerm('')
-                          setSuggestedUsers([])
-                        }}
-                        className="mt-3 w-full px-3 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
-                      >
-                        Cancel
-                      </button>
+          <div className="mb-6">
+            <div className="relative">
+              <input
+                id="userSearch"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search users by name or email..."
+                className="w-full px-4 py-2 rounded-lg"
+              />
+              {showDropdown && filteredUsers.length > 0 && (
+                <div className="absolute z-10 w-full bg-white rounded-lg shadow user-dropdown">
+                  {filteredUsers.map((u) => (
+                    <div
+                      key={u.id}
+                      onClick={() => handleUserSelect(u)}
+                      className="py-2 px-3 hover:bg-gray-100 cursor-pointer"
+                    >
+                      <div className="font-medium">{u.display_name || `${u.first_name || ''} ${u.last_name || ''}`.trim()}</div>
+                      <div className="text-xs text-gray-500">{u.email}</div>
                     </div>
-                  </div>
-                )}
-              </div>
-              
-              <button 
-                onClick={removeDuplicates}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
-              >
-                🧹 No Duplicates
-              </button>
-            </div>
-
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              {selectedFolder ? (
-                /* Videos View */
-                videosLoading ? (
-                  <p className="text-gray-600 dark:text-gray-300">Loading videos...</p>
-                ) : folderVideos.length > 0 ? (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {folderVideos.map((video: any, index) => (
-                      <div key={index} className="bg-white dark:bg-gray-600 p-4 rounded-lg shadow">
-                        {video.thumbnail && (
-                          <img 
-                            src={video.thumbnail} 
-                            alt={video.title}
-                            className="w-full h-32 object-cover rounded mb-3"
-                          />
-                        )}
-                        <h4 className="font-medium text-gray-900 dark:text-white text-sm mb-2">
-                          {video.title}
-                        </h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                          Duration: {video.duration ? `${Math.floor(video.duration / 60)}:${(video.duration % 60).toString().padStart(2, '0')}` : 'Unknown'}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Created: {video.created_time ? new Date(video.created_time).toLocaleDateString() : 'Unknown'}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-600 dark:text-gray-300">No videos found in this folder</p>
-                )
-              ) : (
-                /* Folders View */
-                loading ? (
-                  <p className="text-gray-600 dark:text-gray-300">Loading folders...</p>
-                ) : folders.length > 0 ? (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {folders.map((folder: any, index) => (
-                      <div 
-                        key={index} 
-                        onClick={() => fetchFolderVideos(folder.id, folder.name)}
-                        className={`p-4 rounded-lg shadow cursor-pointer hover:shadow-lg transition-shadow ${
-                          folder.is_main_folder 
-                            ? 'bg-green-50 dark:bg-green-900 border-2 border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-800'
-                            : 'bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <h3 className={`font-semibold ${
-                            folder.is_main_folder 
-                              ? 'text-green-800 dark:text-green-200'
-                              : 'text-gray-900 dark:text-white'
-                          }`}>
-                            {folder.is_main_folder && '⭐ '}
-                            {folder.name || `Folder ${index + 1}`}
-                          </h3>
-                          {folder.is_main_folder && (
-                            <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                              MAIN
-                            </span>
-                          )}
-                        </div>
-                        <p className={`text-sm mt-1 ${
-                          folder.is_main_folder 
-                            ? 'text-green-700 dark:text-green-300'
-                            : 'text-gray-600 dark:text-gray-300'
-                        }`}>
-                          {folder.description || 'Screen recordings folder'}
-                        </p>
-                        {folder.video_count !== undefined && (
-                          <p className={`text-xs mt-2 ${
-                            folder.is_main_folder 
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-gray-500 dark:text-gray-400'
-                          }`}>
-                            {folder.video_count} videos • Click to view
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600 dark:text-gray-300 mb-4">
-                      No folders found
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Click Refresh to load folders or check your folder source
-                    </p>
-                  </div>
-                )
+                  ))}
+                </div>
               )}
             </div>
           </div>
+
+          {!selectedFolder ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {folders.map((folder, idx) => (
+                <div key={folder.uri || folder.name || idx} onClick={() => openFolder(folder)} className={`p-6 rounded shadow cursor-pointer ${folder.isMainFolder ? 'bg-blue-50' : 'bg-white'}`}>
+                  <div className="text-2xl mb-2">📁</div>
+                  <h3 className="font-bold mb-1">{folder.name}</h3>
+                  {folder.email ? <div className="text-sm text-gray-500 mb-2">{folder.email}</div> : null}
+                  <div className="text-sm text-gray-600">{(folder.videos || []).length} videos{folder.customerCount ? ` • ${folder.customerCount} customers` : ''}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>
+              <button onClick={() => setSelectedFolder(null)} className="text-blue-600 mb-4">Back to folders</button>
+              <h2 className="text-2xl font-bold mb-1">{selectedFolder.name}</h2>
+              {selectedFolder.email ? <div className="text-sm text-gray-500 mb-2">{selectedFolder.email}</div> : null}
+              
+              <p className="text-sm text-gray-600 mb-4">{(selectedFolder.videos || []).length} videos</p>
+
+              {selectedFolder.videos && selectedFolder.videos.length > 0 ? (
+                <div className="grid grid-cols-6 gap-4">
+                  {selectedFolder.videos.map((video: any, i: number) => (
+                    <div key={video.uri || i} className="group">
+                      <div className="aspect-video bg-gray-200 rounded overflow-hidden relative mb-2">
+                        {video.pictures?.sizes?.length ? <img src={video.pictures.sizes[0].link} alt={video.name} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-gray-400">🎥</div>}
+
+                        <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingMeta(null); setModalVideo(video) }} className="absolute inset-0 flex items-center justify-center cursor-pointer">
+                          <div className="bg-white p-2 rounded opacity-0 group-hover:opacity-100">▶</div>
+                        </div>
+
+                        {userRole === 'admin' && (
+                          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100">
+                            <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpenEditMeta(video) }} className="bg-yellow-500 text-white p-1 rounded">✎</button>
+                            <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteVideo(video.uri, (video.name || 'Video')) }} className="bg-red-600 text-white p-1 rounded">🗑</button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-2">
+                        <h4 className="text-xs font-medium truncate">{getVideoMeta(video).customerName || video.name || 'Unknown'}</h4>
+                        <div className="text-xs text-gray-500 truncate">{getVideoMeta(video).customerEmail || ''}</div>
+                        <div className="text-xs text-blue-600 truncate">{getVideoMeta(video).liaisonName || ''}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">No videos found in this folder.</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </ThemeProvider>
+
+      {/* Video Modal */}
+      {modalVideo && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-auto">
+            <div className="flex justify-end p-3 border-b">
+              <button onClick={() => { setModalVideo(null); setEditingMeta(null) }} className="p-2">Close</button>
+            </div>
+
+            <div className="p-4">
+              <div className="aspect-video bg-black rounded overflow-hidden mb-4">
+                <iframe src={`https://player.vimeo.com/video/${modalVideo?.uri?.split('/').pop()}?responsive=1`} className="w-full h-full" allow="autoplay; fullscreen" />
+              </div>
+
+              <div className="grid grid-cols-12 gap-4 text-sm">
+                <div className="col-span-6">
+                  <h3 className="text-lg font-semibold">{getVideoMeta(modalVideo).customerName || modalVideo.name}</h3>
+                  <div className="text-xs text-gray-600">{getVideoMeta(modalVideo).customerEmail || ''}</div>
+                  <div className="text-xs text-blue-600">{getVideoMeta(modalVideo).liaisonName || ''}</div>
+                  <div className="text-xs text-gray-500 mt-2">{getVideoMeta(modalVideo).recordedTime || ''}</div>
+                </div>
+
+                <div className="col-span-6">
+                  {editingMeta ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs">Customer Name</label>
+                        <input value={editingMeta.customerName} onChange={(e) => setEditingMeta({ ...editingMeta, customerName: e.target.value })} className="w-full px-2 py-1 border rounded" />
+                      </div>
+                      <div>
+                        <label className="block text-xs">Customer Email</label>
+                        <input value={editingMeta.customerEmail} onChange={(e) => setEditingMeta({ ...editingMeta, customerEmail: e.target.value })} className="w-full px-2 py-1 border rounded" />
+                      </div>
+                      <div>
+                        <label className="block text-xs">Liaison Name</label>
+                        <input value={editingMeta.liaisonName} onChange={(e) => setEditingMeta({ ...editingMeta, liaisonName: e.target.value })} className="w-full px-2 py-1 border rounded" />
+                      </div>
+                      <div>
+                        <label className="block text-xs">Liaison Email</label>
+                        <input value={editingMeta.liaisonEmail} onChange={(e) => setEditingMeta({ ...editingMeta, liaisonEmail: e.target.value })} className="w-full px-2 py-1 border rounded" />
+                      </div>
+                      <div>
+                        <label className="block text-xs">Comments</label>
+                        <textarea value={editingMeta.comments} onChange={(e) => setEditingMeta({ ...editingMeta, comments: e.target.value })} className="w-full px-2 py-1 border rounded h-28" />
+                      </div>
+
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={handleCancelEditMeta} disabled={savingMeta} className="px-3 py-1 bg-gray-300 rounded">Cancel</button>
+                        <button onClick={handleSaveMeta} disabled={savingMeta} className="px-3 py-1 bg-green-600 text-white rounded">{savingMeta ? 'Saving...' : 'Save'}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="max-h-48 overflow-auto bg-gray-50 p-3 rounded border">{getVideoMeta(modalVideo).comments || <span className="text-gray-400 italic">No comments</span>}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

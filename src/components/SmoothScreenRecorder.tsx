@@ -771,12 +771,6 @@ export default function SmoothScreenRecorder({ userRole = 'user' }: SmoothScreen
                     </svg>
                   </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">Ready to Record</h3>
-                  <p className="text-gray-500 dark:text-gray-400 mt-1">
-                    Click the green button below to start recording your screen
-                  </p>
-                </div>
                 <div className="flex items-center justify-center space-x-2 text-sm text-gray-400 dark:text-gray-500">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                   <span>System ready</span>
@@ -839,14 +833,6 @@ export default function SmoothScreenRecorder({ userRole = 'user' }: SmoothScreen
                     <span>Pause</span>
                   </>
                 )}
-              </button>
-              
-              <button
-                onClick={stopRecording}
-                className="bg-gradient-to-b from-red-400 to-red-600 hover:from-red-500 hover:to-red-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-              >
-                <div className="w-4 h-4 bg-white shadow-sm"></div>
-                <span>Stop Recording</span>
               </button>
             </>
           )}
